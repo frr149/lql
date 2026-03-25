@@ -877,6 +877,44 @@ lql/
 - Push a git.example.com, deploy en homelab
 - Archivar repo `linear-curator`
 
+## Edge cases detectados en la auditoría
+
+Errores reales que el diseño inicial no contemplaba explícitamente:
+
+### 1. Label no encontrado — ¿crear o rechazar?
+
+Cuando `lql create --label appstore` y el label no existe en Linear:
+
+- **Default**: rechazar con error claro + listar labels similares
+- **`--create-label`**: crear el label y asignarlo en una sola operación
+
+```
+✗ Label "appstore" not found.
+  Similar: tokamak, autocorrect
+  Available: tokamak, acme, qualitra, blog, homelab, ...
+  Use --create-label to create it.
+```
+
+Razón: 10+ errores por labels inventados. Rechazar por defecto previene labels basura. Pero a veces el LLM tiene razón y el label debería existir.
+
+### 2. `op read` falla — mensaje claro
+
+Cuando 1Password no puede leer la API key (Touch ID dismissed, timeout, no session):
+
+```
+✗ Could not read API key from 1Password.
+  Run: op read "op://Private/Linear/api-key"
+  If this fails, check: op signin
+```
+
+No un stack trace de `op`. Un mensaje que dice qué hacer.
+
+### 3. Project name matching — case insensitive
+
+`--project acme` debe encontrar "Acme". `--project "social publisher"` debe encontrar "Social Publisher". Matching case-insensitive + trim en el resolver de nombres.
+
+Razón: 1 error real por `Project "acme" not found. Similar projects: Acme`.
+
 ## Easter eggs 🦀
 
 | Trigger | Output |
