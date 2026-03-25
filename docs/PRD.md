@@ -952,3 +952,370 @@ Razón: 1 error real por `Project "acme" not found. Similar projects: Acme`.
 | 20 | `linear search` (no existe) | 1 | `lql search` |
 
 **Total eliminado: 500+ errores/mes → 0**
+
+## Apéndice: Casos de test derivados de errores reales
+
+Cada caso es un error real observado en sesiones de Claude Code. El ID de test sigue el formato `ERR-XX`. Convertir a tests de integración y/o unit tests.
+
+### CLI — Normalización de flags
+
+```
+ERR-01: `lql list` sin --sort debe devolver resultados ordenados por prioridad (default)
+  Input:  lql list --team PROD
+  Expect: output ordenado por prioridad, sin error
+
+ERR-02: `--status` se normaliza a `--state`
+  Input:  lql update PROD-587 --status Done
+  Expect: normaliza a --state completed, aplica, stderr: "ℹ --status → normalized to --state"
+
+ERR-03: `--state Todo` se normaliza a `--state unstarted`
+  Input:  lql list --state Todo
+  Expect: filtra por unstarted, stderr: "ℹ State "Todo" → normalized to "unstarted""
+
+ERR-04: `--state "In Progress"` se normaliza a `--state started`
+  Input:  lql list --state "In Progress"
+  Expect: filtra por started
+
+ERR-05: `--state Done` se normaliza a `--state completed`
+  Input:  lql update PROD-587 --state Done
+  Expect: actualiza a completed
+
+ERR-06: `--state cancelled` (doble L) se normaliza a `--state canceled`
+  Input:  lql update PROD-587 --state cancelled
+  Expect: actualiza a canceled
+
+ERR-07: `--priority urgent` se normaliza a `--priority 1`
+  Input:  lql create "Fix bug" --priority urgent
+  Expect: crea con priority 1, stderr: "ℹ Priority "urgent" → normalized to 1"
+
+ERR-08: `--priority high` se normaliza a `--priority 2`
+  Input:  lql create "Fix bug" --priority high
+  Expect: crea con priority 2
+
+ERR-09: `--priority medium` se normaliza a `--priority 3`
+  Input:  lql create "Fix bug" --priority medium
+  Expect: crea con priority 3
+
+ERR-10: `--priority low` se normaliza a `--priority 4`
+  Input:  lql create "Fix bug" --priority low
+  Expect: crea con priority 4
+
+ERR-11: `--no-pager` se ignora silenciosamente en cualquier comando
+  Input:  lql create "Fix bug" --no-pager
+  Expect: crea sin error (flag ignorado)
+
+ERR-12: `--no-interactive` se ignora silenciosamente
+  Input:  lql create "Fix bug" --no-interactive
+  Expect: crea sin error (flag ignorado)
+
+ERR-13: `--sort updated` se normaliza a `--sort updatedAt`
+  Input:  lql list --sort updated
+  Expect: lista ordenada por updatedAt
+```
+
+### CLI — Flags inexistentes con mensaje útil
+
+```
+ERR-14: `--filter` da mensaje útil
+  Input:  lql list --filter "backlog"
+  Expect: exit 1, stderr: "✗ --filter no existe. Para filtrar por estado: --state backlog. Para buscar: lql search \"texto\""
+
+ERR-15: `--query` da mensaje útil
+  Input:  lql list --query "basedpyright"
+  Expect: exit 1, stderr: "✗ --query no existe. Usa: lql search \"basedpyright\""
+
+ERR-16: `--no-limit` da mensaje útil
+  Input:  lql list --no-limit
+  Expect: exit 1, stderr: "✗ --no-limit no existe. Usa: --limit 0"
+
+ERR-17: `--relates-to` da mensaje útil
+  Input:  lql update PROD-587 --relates-to PROD-588
+  Expect: exit 1, stderr: "✗ --relates-to no existe. Usa: lql relate PROD-587 related PROD-588"
+
+ERR-18: `--comment` en update da mensaje útil
+  Input:  lql update PROD-587 --comment "texto"
+  Expect: exit 1, stderr: "✗ --comment no existe en update. Usa: lql comment PROD-587 \"texto\""
+```
+
+### CLI — Context detection
+
+```
+ERR-19: auto-detect team desde cwd ~/projects/tokamak
+  Input:  cd ~/projects/tokamak && lql list
+  Expect: lista issues de team PROD con label tokamak
+
+ERR-20: auto-detect team desde cwd ~/code/acme
+  Input:  cd ~/code/acme && lql list
+  Expect: lista issues de team PROD con label acme
+
+ERR-21: cwd sin match en context-map → pide team explícito
+  Input:  cd /tmp && lql list
+  Expect: exit 1, stderr: "✗ Could not detect team from /tmp. Use --team PROD"
+
+ERR-22: --team override tiene prioridad sobre cwd
+  Input:  cd ~/projects/tokamak && lql list --team CONT
+  Expect: lista issues de team CONT (no PROD)
+```
+
+### Labels — Validación
+
+```
+ERR-23: label inexistente rechazado con sugerencias
+  Input:  lql create "Fix bug" --label appstore
+  Expect: exit 1, stderr: "✗ Label \"appstore\" not found. Similar: tokamak, autocorrect. Use --create-label to create it."
+
+ERR-24: label "enhancement" inexistente rechazado
+  Input:  lql create "Fix bug" --label enhancement
+  Expect: exit 1, stderr incluye labels disponibles
+
+ERR-25: label "qa" inexistente rechazado
+  Input:  lql create "Fix bug" --label qa
+  Expect: exit 1, stderr incluye labels disponibles
+
+ERR-26: label "infra" inexistente rechazado
+  Input:  lql create "Fix bug" --label infra
+  Expect: exit 1, stderr incluye labels disponibles
+
+ERR-27: label existente funciona sin error
+  Input:  lql create "Fix bug" --label tokamak
+  Expect: crea con label tokamak
+
+ERR-28: --create-label crea label y asigna
+  Input:  lql create "Fix bug" --label newlabel --create-label
+  Expect: crea label "newlabel" en workspace, luego crea issue con él
+```
+
+### Projects — Resolución por nombre
+
+```
+ERR-29: project por nombre exacto
+  Input:  lql create "Fix bug" --project Tokamak
+  Expect: asigna project Tokamak (UUID resuelto internamente)
+
+ERR-30: project por nombre case-insensitive
+  Input:  lql create "Fix bug" --project acme
+  Expect: asigna project Acme
+
+ERR-31: project por nombre con espacios case-insensitive
+  Input:  lql create "Fix bug" --project "social publisher"
+  Expect: asigna project "Social Publisher"
+
+ERR-32: project inexistente rechazado con sugerencias
+  Input:  lql create "Fix bug" --project Dashboard
+  Expect: exit 1, stderr: "✗ Project \"Dashboard\" not found. Available: Tokamak, Acme, ..."
+
+ERR-33: project ID numérico rechazado
+  Input:  lql create "Fix bug" --project 686615456359
+  Expect: exit 1, stderr: "✗ Use project name, not ID. Available: Tokamak, Acme, ..."
+```
+
+### Teams — Teams retirados
+
+```
+ERR-34: --team TOK rechazado
+  Input:  lql list --team TOK
+  Expect: exit 1, stderr: "✗ Team TOK is retired. Tokamak issues are now in PROD. Use: --team PROD --label tokamak"
+
+ERR-35: --team QIN rechazado
+  Input:  lql list --team QIN
+  Expect: exit 1, stderr: "✗ Team QIN is retired. Use: --team PROD --label acme"
+
+ERR-36: --team BLO rechazado
+  Input:  lql list --team BLO
+  Expect: exit 1, stderr: "✗ Team BLO does not exist. Did you mean: CONT?"
+
+ERR-37: --team PER rechazado
+  Input:  lql list --team PER
+  Expect: exit 1, stderr: "✗ Team PER does not exist. Did you mean: PRIV?"
+
+ERR-38: --team BLOG rechazado
+  Input:  lql list --team BLOG
+  Expect: exit 1, stderr: "✗ Team BLOG does not exist. Did you mean: CONT?"
+```
+
+### Escapado — Descripciones con caracteres especiales
+
+```
+ERR-39: descripción con comillas dobles
+  Input:  lql create "Fix bug" -d 'El campo "title" no se escapa'
+  Expect: issue creada, descripción preservada literalmente
+
+ERR-40: descripción con backticks
+  Input:  lql create "Fix bug" -d 'Usar `json.dumps()` para escapar'
+  Expect: issue creada, backticks preservados
+
+ERR-41: descripción con newlines (vía --description-file)
+  Input:  echo -e "## Problema\n\nEl token expira.\n\n## Fix\n\nDetectar expiración." > /tmp/desc.md && lql create "Fix bug" --description-file /tmp/desc.md
+  Expect: issue creada, markdown preservado con newlines
+
+ERR-42: descripción con $variables (no expandidas)
+  Input:  lql create "Fix bug" -d 'Set $PATH to include ~/.local/bin'
+  Expect: "$PATH" literal en la descripción, no expandido
+
+ERR-43: descripción con backslashes
+  Input:  lql create "Fix bug" -d 'Regex: \\d+\\.\\d+'
+  Expect: backslashes preservados
+
+ERR-44: descripción con emojis y unicode
+  Input:  lql create "Fix bug" -d '⚠️ Error en producción — 日本語テスト'
+  Expect: unicode preservado
+
+ERR-45: stdin con heredoc
+  Input:  lql create "Fix bug" <<'EOF'
+          ## Problema
+          El campo "title" tiene `backticks` y $variables.
+          EOF
+  Expect: issue creada, todo preservado literalmente
+```
+
+### Auth — 1Password failures
+
+```
+ERR-46: op read timeout
+  Input:  (simular op read que devuelve exit 1 con "authorization timeout")
+  Expect: exit 1, stderr: "✗ Could not read API key from 1Password.\n  Run: op read \"op://Private/Linear/api-key\"\n  If this fails, check: op signin"
+
+ERR-47: op read dismissed
+  Input:  (simular op read que devuelve exit 1 con "authorization prompt dismissed")
+  Expect: mismo mensaje que ERR-46
+```
+
+### API — Error handling
+
+```
+ERR-48: Linear API devuelve error GraphQL
+  Input:  (simular respuesta {"errors": [{"message": "Entity not found"}]})
+  Expect: exit 1, stderr: "✗ Linear API error: Entity not found"
+
+ERR-49: Linear API devuelve 429 (rate limit)
+  Input:  (simular HTTP 429)
+  Expect: retry con backoff (2s, 4s, 8s), max 3 retries, luego error claro
+
+ERR-50: Linear API devuelve 401
+  Input:  (simular HTTP 401)
+  Expect: exit 1, stderr: "✗ Authentication failed. Check your API key: lql doctor"
+
+ERR-51: Linear API devuelve 500
+  Input:  (simular HTTP 500)
+  Expect: retry con backoff, luego: "✗ Linear API server error (500). Try again later."
+
+ERR-52: Network error (no conexión)
+  Input:  (simular connection refused)
+  Expect: exit 1, stderr: "✗ Could not connect to Linear API. Check your network."
+
+ERR-53: issue no encontrada
+  Input:  lql view PROD-99999
+  Expect: exit 1, stderr: "✗ PROD-99999 not found."
+
+ERR-54: issue no encontrada con sugerencia
+  Input:  lql view PROD-999
+  Expect: exit 1, stderr: "✗ PROD-999 not found. Similar: PROD-599 \"OAuth token refresh\""
+```
+
+### Formato de output
+
+```
+ERR-55: list output es compacto (una línea por issue)
+  Input:  lql list --team PROD --limit 3
+  Expect: cada línea sigue formato "ID [State] labels — Title (age, due)"
+
+ERR-56: list footer muestra conteo por estado
+  Input:  lql list --team PROD
+  Expect: última línea: "── N issues (X backlog, Y todo, Z in-progress)"
+
+ERR-57: create output muestra ID + URL
+  Input:  lql create "Test issue" --team PROD --label tokamak
+  Expect: "✓ PROD-XXX created [Todo] tokamak — Test issue\n  https://linear.app/frr149/issue/PROD-XXX"
+
+ERR-58: update output muestra transición
+  Input:  lql update PROD-587 --state completed
+  Expect: "✓ PROD-587 Backlog → Done"
+
+ERR-59: --json produce JSONL válido
+  Input:  lql list --json --limit 3
+  Expect: cada línea es JSON válido parseable con serde, campos: id, state, labels, title, age_days, due, overdue, project, priority
+
+ERR-60: output no contiene ANSI escape codes
+  Input:  lql list | cat -v
+  Expect: no hay secuencias \e[, \033[, etc.
+```
+
+### Búsqueda
+
+```
+ERR-61: search encuentra por título
+  Input:  lql search "basedpyright"
+  Expect: devuelve issues con "basedpyright" en título o descripción, formato list
+
+ERR-62: search con filtro de team
+  Input:  lql search "OAuth" --team PROD
+  Expect: solo issues del team PROD
+
+ERR-63: search con filtro de estado
+  Input:  lql search "OAuth" --state backlog,unstarted
+  Expect: solo issues en esos estados
+
+ERR-64: search sin resultados
+  Input:  lql search "xyznonexistent123"
+  Expect: "── 0 issues", exit 0
+```
+
+### Comentarios
+
+```
+ERR-65: comment inline
+  Input:  lql comment PROD-587 "Investigado, el problema es X"
+  Expect: "✓ Comment added to PROD-587"
+
+ERR-66: comment desde fichero
+  Input:  echo "## Progreso" > /tmp/c.md && lql comment PROD-587 --file /tmp/c.md
+  Expect: "✓ Comment added to PROD-587"
+
+ERR-67: comment desde stdin
+  Input:  echo "Progreso parcial" | lql comment PROD-587
+  Expect: "✓ Comment added to PROD-587"
+```
+
+### Relaciones
+
+```
+ERR-68: relate blocks
+  Input:  lql relate PROD-587 blocks PROD-588
+  Expect: "✓ PROD-587 blocks PROD-588"
+
+ERR-69: relate blocked-by se normaliza
+  Input:  lql relate PROD-587 blocked-by PROD-515
+  Expect: crea relación PROD-515 blocks PROD-587 (invertida), "✓ PROD-587 blocked-by PROD-515"
+
+ERR-70: relate related
+  Input:  lql relate PROD-587 related PROD-520
+  Expect: "✓ PROD-587 related PROD-520"
+
+ERR-71: tipo de relación inválido
+  Input:  lql relate PROD-587 depends-on PROD-520
+  Expect: exit 1, stderr: "✗ Unknown relation type \"depends-on\". Available: blocks, blocked-by, related"
+```
+
+### Duplicados
+
+```
+ERR-72: create detecta duplicado y avisa
+  Input:  lql create "OAuth token refresh" --team PROD --label tokamak
+  Expect: stderr warning con issues similares, pero crea de todos modos (no-TTY)
+
+ERR-73: create con --force omite detección de duplicados
+  Input:  lql create "OAuth token refresh" --team PROD --label tokamak --force
+  Expect: crea sin warning
+```
+
+### Concurrencia
+
+```
+ERR-74: dos lql list simultáneos no interfieren
+  Input:  lql list --team PROD & lql list --team CONT & wait
+  Expect: ambos completan sin error
+
+ERR-75: lql create + lql list simultáneos
+  Input:  lql create "Test" --team PROD --label tokamak & lql list --team PROD & wait
+  Expect: ambos completan sin error
+```
