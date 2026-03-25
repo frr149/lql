@@ -229,8 +229,17 @@ lql list --all-teams
 # Issues vencidas
 lql list --overdue
 
+# Todos los resultados (sin límite)
+lql list --all
+
 # Output JSON (para pipe/parsing por scripts, NO para LLMs)
 lql list --json
+```
+
+**Paginación**: por defecto `limit = 50` (configurable en TOML). Cuando hay más resultados, el footer lo indica:
+
+```
+── showing 50 of 87 issues (use --all or --limit N for more)
 ```
 
 ### `lql create` — Crear issue
@@ -359,6 +368,34 @@ lql labels --team PROD
 ```
 
 Para que el LLM nunca invente labels.
+
+### `lql raw` — Escape hatch para queries GraphQL arbitrarias
+
+Cuando `lql` no cubre una operación, `raw` permite ejecutar queries GraphQL directas sin salir del wrapper (evitando el fallback a `curl` + escapado manual que causa 80+ reintentos).
+
+```bash
+# Query inline
+lql raw 'query { viewer { id name } }'
+
+# Desde fichero (para mutations complejas)
+lql raw --file query.graphql
+
+# Con variables
+lql raw --file query.graphql --var teamId=PROD-UUID --var title="Fix bug"
+
+# Variables desde fichero JSON
+lql raw --file query.graphql --vars-file vars.json
+```
+
+**Comportamiento**:
+
+- Output: JSON crudo sin formatear (lo que devuelve Linear)
+- Auth: usa la misma API key que el resto de lql
+- Variables: `--var key=value` repetible, se construyen como objeto JSON con serde (escapado seguro)
+- Sin normalización ni aliases — el usuario escribe GraphQL puro
+- Exit 1 si la API devuelve errores, con el mensaje de error de Linear
+
+**No incluye**: introspección de schema, autocompletado de campos, formateo del resultado. Es un pipe directo al endpoint GraphQL con auth y serde.
 
 ### `lql curate` — Clasificar issues sin label (absorbe linear-curator)
 
@@ -521,6 +558,7 @@ limit = 50
 "~/code/auto_correct"    = { team = "TOOL", project = "auto_correct", label = "autocorrect" }
 "~/code/memento"         = { team = "TOOL", project = "memento",    label = "workflows" }
 "~/code/mcp-email"       = { team = "TOOL", label = "claude-code" }
+"~/code/lql"             = { team = "TOOL", label = "lql" }
 
 [state-aliases]
 # UI name → CLI value
@@ -567,6 +605,7 @@ chat_id_ref = "op://FRR DEV/Telegram Bot/group-id"
 - **clap** (derive) para CLI — flag aliases en compile time (`#[arg(alias = "status")]`)
 - **reqwest** (blocking) para HTTP — Linear API, OpenRouter, Telegram
 - **serde** + **serde_json** para JSON — escapado correcto by construction, el problema #1 (80+ reintentos) es imposible
+- **chrono** para fechas — due dates relativos (`--due friday`, `--due +7d`), cálculo de age/overdue
 - **toml** para config
 - **fs2** para file locking (`corrections.jsonl`)
 - **Auth**: `op read` vía `std::process::Command` (usa el wrapper cache de `~/.local/bin/op`)
@@ -582,7 +621,7 @@ chat_id_ref = "op://FRR DEV/Telegram Bot/group-id"
 | **Deploy** | Clonar repo + `uv sync` + `.venv` | Copiar un binario |
 | **JSON escaping** | `json.dumps` (correcto pero runtime) | `serde_json::to_value` (correcto by construction) |
 | **Flag validation** | Runtime (click) | Compile time (clap derive) |
-| **Cross-compile** | No aplica | `cargo build --target x86_64-unknown-linux-gnu` desde Mac → binario para wuwei |
+| **Cross-compile** | No aplica | `cargo build --target x86_64-unknown-linux-musl` desde Mac → binario estático para wuwei |
 | **Dependencies en wuwei** | Python 3.12+, uv, venv, git clone | Nada. Un binario estático. |
 
 ### Escapado seguro — la solución al problema #1
@@ -629,7 +668,7 @@ Un solo fichero local. No es estado de la app — es un dataset de entrenamiento
 {"issue":"PROD-618","title":"Configurar cron nocturno en wuwei","curator_said":"blog","user_corrected":"wuwei","reason":"infra task, not content","timestamp":"2026-03-10T..."}
 ```
 
-- **Quién escribe**: `review` (append con `fcntl.flock` cuando el usuario corrige una sugerencia)
+- **Quién escribe**: `review` (append con `fs2::FileExt::lock_exclusive` cuando el usuario corrige una sugerencia)
 - **Quién lee**: `curate` (snapshot de las últimas 20 correcciones al inicio, inyectadas como few-shot en el system prompt)
 - **Concurrencia**: semántica de log — append + snapshot. Sin conflicto.
 - **Crecimiento**: ~10 correcciones/mes. El fichero tendrá ~100 líneas en un año.
@@ -665,35 +704,6 @@ Múltiples agentes (Claude Code, Codex, otros) pueden usar `lql` concurrentement
 - **Pending reviews en Linear** (comentarios) → `curate` escribe comentarios, `review` los lee. Concurrencia resuelta por Linear server-side. Sin fichero compartido.
 - **`corrections.jsonl`** (único fichero local) → append-only por `review`, snapshot-read por `curate`. Semántica de log, sin conflicto. `fcntl.flock` para appends por higiene.
 
-### Escapado seguro — la solución al problema #1
-
-```python
-# NUNCA construir queries con interpolación de strings:
-# MAL:  f'mutation {{ issueCreate(input: {{ title: "{title}" }}) }}'
-# BIEN: usar variables GraphQL
-
-query = """
-mutation CreateIssue($input: IssueCreateInput!) {
-  issueCreate(input: $input) {
-    success
-    issue { id identifier url title }
-  }
-}
-"""
-variables = {
-    "input": {
-        "title": title,           # escapado automático por json.dumps
-        "description": desc,      # cualquier markdown funciona
-        "teamId": team_id,
-        "stateId": state_id,
-        "labelIds": label_ids,
-        "projectId": project_id,
-    }
-}
-# httpx envía {"query": query, "variables": variables} → escapado perfecto
-```
-
-Esto elimina el 100% de los errores de escapado (25+ errores, 80+ reintentos).
 
 ## Instalación
 
@@ -829,6 +839,7 @@ lql/
 │   │   ├── comment.rs
 │   │   ├── relate.rs
 │   │   ├── labels.rs
+│   │   ├── raw.rs              # Escape hatch: GraphQL directo
 │   │   ├── summary.rs
 │   │   ├── triage.rs
 │   │   ├── curate.rs        # LLM classification pipeline
@@ -850,7 +861,7 @@ lql/
 
 ### Fase 1 — Core CLI
 
-- `list`, `create`, `update`, `view`, `search`, `comment`, `relate`, `labels`
+- `list`, `create`, `update`, `view`, `search`, `comment`, `relate`, `labels`, `raw`
 - Config TOML con context-map, state/priority aliases
 - Normalización automática de toda la interfaz (clap aliases + normalize layer)
 - GraphQL client con serde (escapado correcto by construction)
@@ -877,6 +888,184 @@ lql/
 - Push a git.frr.dev, deploy en wuwei
 - Archivar repo `linear-curator`
 
+## Recomendaciones de producto y recorte
+
+Sección añadida a partir de una revisión crítica del PRD desde la perspectiva de uso real por agentes como Codex. La dirección general del proyecto es buena y claramente mejor que la CLI oficial para consumo por LLMs, pero conviene introducir algunos ajustes para evitar sobrediseño en la primera iteración.
+
+### Sugerencias de diseño
+
+#### 1. Añadir `lql context`
+
+El auto-detect por cwd es una de las mayores ventajas del diseño, pero necesita una forma explícita de inspección. Propuesta:
+
+```bash
+lql context
+```
+
+Output:
+
+```text
+Context: /Users/fernando/code/tokamak
+  Team: PROD
+  Project: Tokamak
+  Label: tokamak
+  Source: ~/.config/lql/config.toml
+```
+
+Esto reduce ambigüedad para humanos y agentes y facilita debug cuando un cwd resuelve a un team/project inesperado.
+
+#### 2. Hacer estructuradas las sugerencias del curator
+
+La idea de usar comentarios en Linear como fuente de verdad es buena, pero no conviene depender de texto libre como protocolo. En vez de parsear solo:
+
+```text
+🏷 Curator suggestion: blog (71%) — "mentions pipeline and cron"
+```
+
+conviene incluir una carga estructurada mínima y versionada dentro del comentario, por ejemplo:
+
+```text
+🏷 Curator suggestion: blog (71%) — "mentions pipeline and cron"
+<!-- lql:review {"version":1,"suggested":"blog","confidence":0.71} -->
+```
+
+Así `review` puede leer un marcador estable aunque cambie el texto visible del comentario.
+
+#### 3. Mantener un escape hatch deliberado
+
+Aunque el objetivo sea cubrir el 95% de casos comunes, Linear tiene mucha superficie y siempre aparecerán operaciones raras. Conviene prever desde el principio una salida controlada, por ejemplo:
+
+```bash
+lql raw query.graphql --var team=PROD
+```
+
+o un subcomando equivalente solo para usuarios avanzados. No debe ser el camino principal, pero evita bloquear el uso cuando el wrapper todavía no cubre algo.
+
+#### 4. `--create-label` debe ser excepcional
+
+El PRD contempla `--create-label` como escape cuando un label no existe. Para agentes esto es peligroso porque facilita crear taxonomía basura por error semántico. Recomendación:
+
+- no incluir `--create-label` en el MVP
+- si se implementa después, exigir `--team` explícito o confirmación adicional
+- limitarlo a labels team-specific, nunca workspace-level por defecto
+
+#### 5. Separar claramente output humano-LLM de output estable para automatización
+
+El formato compacto propuesto es correcto para agentes y terminal, pero scripts y hooks necesitarán contratos más rígidos. Recomendación:
+
+- conservar el formato compacto como default
+- mantener `--json` como JSONL estable
+- documentar explícitamente qué campos están garantizados en JSON y su compatibilidad semántica entre versiones
+
+#### 6. Añadir una noción explícita de límites del comando
+
+`lql list` sin argumentos debe funcionar siempre, sí, pero también debe ser acotado. Conviene fijar desde el principio:
+
+- límite por defecto visible (`limit = 50`)
+- footer con `showing 50 of N` cuando haya más resultados
+- opción clara para paginar o pedir todo (`--limit`, `--all`)
+
+Sin esto, el ahorro de tokens puede degradarse rápido en equipos con muchos issues activas.
+
+### Propuesta de MVP
+
+El MVP debe demostrar que `lql` ya sustituye a la CLI oficial en el trabajo diario de agentes y humanos, pero sin absorber todavía todo `linear-curator`.
+
+#### Objetivo del MVP
+
+Cubrir el bucle operativo principal:
+
+1. descubrir issues
+2. leer contexto suficiente
+3. crear y actualizar issues sin fricción
+4. comentar y relacionar issues
+5. validar configuración y contexto
+
+#### Alcance del MVP
+
+- `list`
+- `view`
+- `search`
+- `create`
+- `update`
+- `comment`
+- `relate`
+- `labels`
+- `doctor`
+- `context`
+- `raw` (escape hatch para GraphQL directo)
+- Config TOML con `context-map`, aliases de estado y prioridad
+- Output compacto por defecto + `--json`
+- Validación fuerte de team/project/label
+- Detección de duplicados en `create`
+- GraphQL client directo con variables y serde
+- Tests de normalización, formato y errores de auth/config
+
+#### Fuera del MVP
+
+- `curate`
+- `review`
+- `summary`
+- `triage`
+- Telegram
+- feedback loop con `corrections.jsonl`
+- sustitución de `memento`
+- despliegue nocturno en `wuwei`
+- `--create-label`
+
+#### Criterio de “MVP listo”
+
+Se puede cambiar el skill `/issues` para usar `lql` por defecto en trabajo diario sin recurrir a `linear` CLI ni a GraphQL manual en los casos habituales.
+
+### Propuesta de versión 2.0
+
+La v2.0 debería empezar cuando el core CLI ya esté estable y usado de verdad, no en paralelo. Su foco ya no sería “reemplazar la CLI oficial”, sino “cerrar el workflow completo de curación y triage”.
+
+#### Objetivo de la v2.0
+
+Convertir `lql` en la capa única de operación sobre Linear para:
+
+- trabajo diario manual
+- consumo por agentes
+- curación nocturna
+- higiene operativa transversal
+
+#### Alcance de la v2.0
+
+- `curate`
+- `review`
+- `summary`
+- `triage`
+- comentarios estructurados de suggestion/review
+- `corrections.jsonl`
+- integración Telegram
+- integración con `memento`
+- despliegue en `wuwei`
+- archivado de `linear-curator`
+- `--create-label` (con `--team` obligatorio, solo labels team-specific)
+
+##### Test v2.0: ERR-28
+
+```
+ERR-28: --create-label crea label y asigna
+  Input:  lql create "Fix bug" --label newlabel --create-label --team PROD
+  Expect: crea label "newlabel" en team PROD, luego crea issue con él
+```
+
+#### Condiciones previas para arrancar v2.0
+
+- el core CLI ya resuelve bien los comandos diarios
+- el `context-map` ya está afinado con uso real
+- el output compacto ha demostrado ser estable para agentes
+- la resolución de labels/projects ya no produce ruido operacional
+
+#### Qué no meter todavía en v2.0
+
+- cache persistente de metadata
+- sincronización bidireccional compleja con sistemas externos
+- personalización excesiva del output por usuario
+- heurísticas demasiado “mágicas” que compliquen el modelo mental del CLI
+
 ## Edge cases detectados en la auditoría
 
 Errores reales que el diseño inicial no contemplaba explícitamente:
@@ -885,17 +1074,16 @@ Errores reales que el diseño inicial no contemplaba explícitamente:
 
 Cuando `lql create --label appstore` y el label no existe en Linear:
 
-- **Default**: rechazar con error claro + listar labels similares
-- **`--create-label`**: crear el label y asignarlo en una sola operación
+- **MVP**: rechazar con error claro + listar labels similares
+- **v2.0**: `--create-label` con `--team` obligatorio (ver sección v2.0)
 
 ```
 ✗ Label "appstore" not found.
   Similar: tokamak, autocorrect
   Available: tokamak, qinqin, qualitra, blog, wuwei, ...
-  Use --create-label to create it.
 ```
 
-Razón: 10+ errores por labels inventados. Rechazar por defecto previene labels basura. Pero a veces el LLM tiene razón y el label debería existir.
+Razón: 10+ errores por labels inventados. Rechazar por defecto previene labels basura.
 
 ### 2. `op read` falla — mensaje claro
 
@@ -1050,7 +1238,7 @@ ERR-20: auto-detect team desde cwd ~/code/qinqin
 
 ERR-21: cwd sin match en context-map → pide team explícito
   Input:  cd /tmp && lql list
-  Expect: exit 1, stderr: "✗ Could not detect team from /tmp. Use --team PROD"
+  Expect: exit 1, stderr: "✗ Could not detect team from /tmp. Use --team <TEAM>. Available: PROD, CONT, PRIV, TOOL, KC"
 
 ERR-22: --team override tiene prioridad sobre cwd
   Input:  cd ~/code/tokamak && lql list --team CONT
@@ -1080,10 +1268,9 @@ ERR-27: label existente funciona sin error
   Input:  lql create "Fix bug" --label tokamak
   Expect: crea con label tokamak
 
-ERR-28: --create-label crea label y asigna
-  Input:  lql create "Fix bug" --label newlabel --create-label
-  Expect: crea label "newlabel" en workspace, luego crea issue con él
 ```
+
+> **Nota**: ERR-28 (`--create-label`) queda fuera del MVP. Ver sección v2.0.
 
 ### Projects — Resolución por nombre
 
