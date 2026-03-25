@@ -1,0 +1,59 @@
+use crate::cli::{self, SearchOpts};
+use crate::client::Client;
+use crate::config::Config;
+use crate::format;
+
+pub fn run(config: &Config, opts: &SearchOpts) -> Result<(), String> {
+    let client = Client::new(&config.auth.api_key_ref)?;
+
+    let mut filter = serde_json::json!({});
+
+    if let Some(ref team) = opts.team {
+        // Comprobar teams retirados
+        if let Some(msg) = config.retired_teams.get(team.as_str()) {
+            return Err(format!("Team {team} is retired. {msg}"));
+        }
+        filter["team"] = serde_json::json!({"key": {"eq": team}});
+    }
+
+    if let Some(ref states) = opts.state {
+        let state_types: Vec<String> = states
+            .iter()
+            .map(|s| cli::normalize_state(s, &config.state_aliases))
+            .collect();
+        let state_filter: Vec<serde_json::Value> = state_types
+            .iter()
+            .map(|t| serde_json::json!({"eq": *t}))
+            .collect();
+        filter["state"] = serde_json::json!({"type": {"or": state_filter}});
+    }
+
+    let limit = opts.limit.unwrap_or(config.defaults.limit);
+
+    let variables = serde_json::json!({
+        "term": opts.query,
+        "filter": filter,
+        "first": limit,
+    });
+
+    let data = client.query(crate::queries::SEARCH_QUERY, variables)?;
+
+    let issues = data
+        .get("searchIssues")
+        .and_then(|s| s.get("nodes"))
+        .and_then(|n| n.as_array())
+        .ok_or("Could not parse search results")?;
+
+    if opts.json {
+        for issue in issues {
+            println!("{}", format::format_issue_json(issue));
+        }
+    } else {
+        for issue in issues {
+            println!("{}", format::format_issue_compact(issue));
+        }
+        println!("{}", format::format_footer(issues, None, limit));
+    }
+
+    Ok(())
+}

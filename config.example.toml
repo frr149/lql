@@ -1,0 +1,28 @@
+[auth]
+api_key_ref = "op://Private/Linear/api-key"
+
+[defaults]
+sort = "priority"
+states = ["backlog", "unstarted", "started"]
+limit = 50
+
+[context-map]
+# directorio → team, project, label
+"~/code/myproject" = { team = "ENG", project = "MyProject", label = "myproject" }
+
+[state-aliases]
+"Todo" = "unstarted"
+"In Progress" = "started"
+"Done" = "completed"
+"Canceled" = "canceled"
+"Cancelled" = "canceled"
+
+[priority-aliases]
+urgent = 1
+high = 2
+medium = 3
+low = 4
+none = 0
+
+[retired-teams]
+# OLD = "Use: --team NEW --label old"
