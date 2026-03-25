@@ -1,0 +1,916 @@
+# PRD: lql — CLI wrapper para Linear optimizado para LLMs
+
+**Autor**: Fernando + Claude
+**Fecha**: 2026-03-25
+**Estado**: Borrador
+
+## Problema
+
+Claude Code interactúa con Linear ~800 veces al mes a través de la CLI oficial (`linear`) y la API GraphQL. Un análisis de 165 sesiones revela **500+ errores y 370+ reintentos** causados por:
+
+1. **Flags inventados** (171 usos de MCP prohibido, 64 creates sin `--no-interactive`, 40+ lists sin `--sort`)
+2. **Escapado JSON/GraphQL roto** (25+ fallos con 80+ reintentos en cadena)
+3. **Confusión de nomenclatura** (`--status`/`--state`, `Todo`/`unstarted`, `urgent`/`1`)
+4. **Operaciones imposibles por CLI** (filtro por label, search, asignar project)
+5. **Output verbose** que desperdicia tokens del contexto del LLM
+
+Cada error cuesta ~2000 tokens (comando + error + retry). Estimación conservadora: **700K tokens/mes desperdiciados** en interacción con Linear.
+
+Además, existe `linear-curator`, un servicio nocturno que clasifica issues sin label usando un LLM y notifica por Telegram. Su problema principal: cuando la confianza es media (50–84%), envía un mensaje a Telegram diciendo "revisa manualmente" — pero no hay forma rápida de actuar desde ahí. El usuario tiene que abrir Linear, buscar la issue, y asignar el label a mano. Ese flujo está roto.
+
+## Solución
+
+`lql` ("Linear Query Language"): CLI en Rust que unifica tres cosas:
+
+1. **CLI interactiva** — wrapper sobre la API GraphQL con interfaz diseñada para LLMs
+2. **Curator nocturno** — absorbe linear-curator: clasifica issues sin label, aplica automático o pide review
+3. **Review rápido** — `lql review` permite resolver las issues pendientes de revisión desde la terminal, sin abrir Linear
+
+No usa la CLI oficial — va directo a GraphQL, eliminando toda la capa de errores.
+
+## Principios de diseño
+
+### 1. Output token-efficient por defecto
+
+El consumidor principal (95%) es un LLM (Claude Code). El LLM no parsea con regex — lee texto natural. Necesita: issue ID para follow-up, estado, contexto suficiente para decidir sin hacer `view`.
+
+```
+# CLI oficial (1 issue): ~55 tokens
+▄▆█ PROD-587  Importar sesiones desde backup del NAS          qinqin  - -  [38;2;190;194;200mBacklog[39m [90m3 days ago[39m
+
+# JSONL (1 issue): ~50 tokens (claves repetidas, peor que compacto para LLMs)
+{"id":"PROD-587","state":"backlog","labels":["qinqin"],"title":"Importar sesiones...","age_days":14}
+
+# lql (1 issue): ~25 tokens
+PROD-587 [Backlog] qinqin — Importar sesiones desde backup del NAS (14d, overdue!)
+```
+
+Con 50 issues: CLI=2750 tokens, JSONL=2500, Compacto=1250. **Ratio 2:1 vs JSONL, 2.2:1 vs CLI.**
+
+JSONL es peor que compacto para el LLM porque las claves (`"state":`, `"labels":`) se repiten en cada línea y el LLM no las necesita — entiende por posición. `--json` existe solo para scripts (memento, hooks).
+
+### 2. Zero flags obligatorios
+
+| CLI oficial | lql | Por qué |
+|---|---|---|
+| `--sort priority` obligatorio | Default `priority` | El 100% de mis usos son por prioridad |
+| `--no-pager` obligatorio | Sin pager nunca | LLMs no tienen terminal |
+| `--all-assignees` obligatorio | Default all | Solo hay un usuario |
+| `--no-interactive` obligatorio | Nunca interactivo | LLMs no pueden responder prompts |
+| `--team X` obligatorio | Auto-detect por cwd | Ya tengo el context-map |
+
+Un `lql list` sin argumentos debe funcionar siempre.
+
+### 3. Tolerancia total a errores de interfaz
+
+Normalizaciones automáticas en el parser de argumentos:
+
+| Input | Se normaliza a | Error actual |
+|---|---|---|
+| `--status Done` | `--state completed` | `Unknown option "--status"` |
+| `--state Todo` | `--state unstarted` | `must be of type "state"` |
+| `--state "In Progress"` | `--state started` | `must be of type "state"` |
+| `--state Done` | `--state completed` | `must be of type "state"` |
+| `--state cancelled` | `--state canceled` | doble L |
+| `--priority urgent` | `--priority 1` | `must be of type "number"` |
+| `--priority high` | `--priority 2` | ídem |
+| `--priority medium` | `--priority 3` | ídem |
+| `--priority low` | `--priority 4` | ídem |
+| `--no-pager` | (ignorado) | `Unknown option` |
+| `--no-interactive` | (ignorado) | `Unknown option` |
+| `--sort updated` | `--sort updatedAt` | `must be of type "sort"` |
+
+Cualquier flag desconocido genera un mensaje **útil**, no críptico:
+
+```
+# CLI oficial:
+error: Unknown option "--filter". Did you mean option "--state"?
+
+# lql:
+ERROR: --filter no existe. Para buscar por texto: lql search "texto"
+       Para filtrar por estado: lql list --state backlog
+       Para filtrar por label: lql list --label qinqin
+```
+
+### 4. Descripciones seguras por defecto
+
+NUNCA escapado inline. Siempre `--description-file` o stdin:
+
+```bash
+# Aceptado:
+lql create "título" --description-file /tmp/desc.md
+lql create "título" <<'EOF'
+Descripción con "comillas", `backticks` y $variables.
+Todo funciona porque no hay shell escaping.
+EOF
+
+# También aceptado (string corta):
+lql create "título" -d "Descripción simple sin markdown"
+```
+
+Para `-d` inline, `lql` escapa automáticamente al construir la mutación GraphQL. El LLM nunca ve el escapado.
+
+## Formato de output
+
+### Principio: un formato para LLM y humano, otro para scripts
+
+El LLM no necesita claves JSON — entiende por posición. El humano no necesita ANSI codes — necesita scanning rápido. Ambos necesitan lo mismo: texto compacto, posicional, sin ruido. `--json` (JSONL) existe solo para scripts que parsean con jq/Python.
+
+### `list` / `search` — una línea por issue
+
+```
+PROD-587 [Backlog] qinqin — Importar sesiones desde backup del NAS (14d, overdue!)
+PROD-515 [Started] tokamak,bug — Extra usage detection sin API (3d)
+PROD-529 [Backlog] wuwei — Mover media a Yottamaster (4d, due:Mar 21)
+── 3 issues (1 overdue, 1 started, 1 backlog)
+```
+
+**Estructura**: `ID [State] labels — Title (age, due)`
+
+| Elemento | Por qué ahí | Ejemplo |
+|---|---|---|
+| ID primero | El LLM lo necesita para el siguiente comando | `PROD-587` |
+| [State] en brackets | Delimitador visual no ambiguo, posición fija | `[Backlog]` |
+| Labels sin brackets | Separados por coma, no confundir con state | `qinqin,bug` |
+| Em-dash separador | No se confunde con guiones en títulos | `—` |
+| Metadata entre paréntesis | Age siempre, due solo si existe | `(14d, overdue!)` |
+| Footer | Conteo por estado — ahorra al LLM contar | `── 3 issues (...)` |
+
+**Por qué no TSV**: el LLM lee texto, no tablas. Títulos largos rompen columnas fijas.
+
+**`--json`** (solo para scripts):
+
+```jsonl
+{"id":"PROD-587","state":"backlog","labels":["qinqin"],"title":"Importar sesiones desde backup del NAS","age_days":14,"due":"2026-03-11","overdue":true,"project":"Qinqin","priority":2}
+```
+
+### `create` — confirmación + URL
+
+```
+✓ PROD-612 created [Todo] tokamak — Fix auth token refresh
+  https://linear.app/frr149/issue/PROD-612
+```
+
+Una línea con todo lo que el LLM necesita (ID + estado). URL en segunda línea solo para `create` (el humano puede querer abrir).
+
+### `update` — transición en una línea
+
+```
+✓ PROD-587 Backlog → Done
+```
+
+Transición visible. El LLM sabe que funcionó sin parsear nada. Sin URL (ya tiene el ID).
+
+### `view` — compacto, descripción sin truncar
+
+```
+PROD-587 [Backlog] P2 qinqin — Importar sesiones desde backup del NAS
+  Team: PROD | Project: Qinqin | Created: 14d | Due: overdue!
+  ─────
+  El NAS murió. Los discos están montados en wuwei como /mnt/keepcoding.
+  Necesitamos importar las sesiones de Claude Code que estaban allí.
+  ─────
+  Relations: blocks PROD-588
+  Comments: 2
+```
+
+Header = misma línea que `list` + prioridad. Descripción sin truncar (el LLM pidió `view` para leerla). Sin URL — el patrón es fijo: `linear.app/frr149/issue/{ID}`.
+
+### `summary` / `triage` — secciones con alertas
+
+```
+PROD — 23 active (8 backlog, 12 todo, 3 in-progress)
+  ⚠ 3 overdue: PROD-587 (14d), PROD-513 (10d), PROD-514 (10d)
+  ⚠ 2 sin project: PROD-529, PROD-527
+```
+
+Headers por team, alertas indentadas con `⚠`. El LLM escanea los `⚠` para saber dónde actuar.
+
+### Errores — accionables, con sugerencia
+
+```
+✗ Label "appstore" not found. Available: tokamak, qinqin, qualitra, blog, wuwei, ...
+✗ PROD-999 not found. Similar: PROD-599 "OAuth token refresh"
+```
+
+Sin stack traces. Si un valor se puede normalizar automáticamente, no es error — es corrección silenciosa con log a stderr:
+
+```
+(stderr) ℹ State "Todo" → normalized to "unstarted"
+```
+
+El LLM ve que funcionó en stdout y aprende el nombre correcto en stderr. Sin retry necesario.
+
+## Comandos
+
+### `lql list` — Listar issues
+
+```bash
+# Auto-detect team del cwd, estados activos, sort priority
+lql list
+
+# Filtrar por label (EL CASO DE USO #1 QUE FALTA)
+lql list --label qinqin
+lql list --label tokamak --label bug
+
+# Filtrar por project
+lql list --project Tokamak
+
+# Filtrar por estado
+lql list --state backlog
+lql list --state started,unstarted   # múltiples con coma
+
+# Combinar filtros
+lql list --label qinqin --state backlog --project Qinqin
+
+# Todos los teams
+lql list --all-teams
+
+# Issues vencidas
+lql list --overdue
+
+# Output JSON (para pipe/parsing por scripts, NO para LLMs)
+lql list --json
+```
+
+### `lql create` — Crear issue
+
+```bash
+# Mínimo (auto-detect team, project, label del cwd)
+lql create "Fix auth token refresh"
+
+# Con descripción
+lql create "Fix auth token refresh" --description-file /tmp/desc.md
+
+# Con descripción inline (escapado automático)
+lql create "Fix auth token refresh" -d "El token OAuth expira y no se refresca"
+
+# Con stdin
+lql create "Fix auth token refresh" <<'EOF'
+## Problema
+El token OAuth expira tras 8h y no se refresca automáticamente.
+
+## Solución propuesta
+Detectar `expiresAt` < now + 5min y emitir warning en logs.
+EOF
+
+# Override team/project/label
+lql create "Fix auth" --team CONT --project Blog --label blog
+
+# Con prioridad (acepta número O nombre)
+lql create "Fix auth" --priority urgent   # se normaliza a 1
+lql create "Fix auth" --priority 1        # también funciona
+
+# Con due date
+lql create "Fix auth" --due 2026-04-01
+lql create "Fix auth" --due friday        # fecha relativa
+lql create "Fix auth" --due +7d           # en 7 días
+```
+
+**Detección de duplicados** (antes de crear):
+
+```
+⚠ Issues similares encontradas:
+  PROD-602 [Backlog] "OAuth token refresh — detect expiry" (85% match)
+  PROD-511 [Done] "Fix OAuth token handling" (62% match)
+
+Creando de todos modos. Usa --force para omitir esta comprobación.
+```
+
+La detección usa `searchIssues(term:)` con el título. Si hay match >70% en issues activas, avisa en stderr. `--force` omite la comprobación. En modo no-TTY (LLM), emite warning y crea — el LLM decide si abortar.
+
+### `lql update` — Actualizar issue
+
+```bash
+# Cambiar estado (acepta UI names)
+lql update PROD-587 --state Done        # → completed
+lql update PROD-587 --state started
+
+# Cambiar prioridad
+lql update PROD-587 --priority urgent   # → 1
+
+# Mover de proyecto
+lql update PROD-587 --project Tokamak
+
+# Añadir label
+lql update PROD-587 --label bug
+
+# Cambiar título
+lql update PROD-587 --title "Nuevo título"
+
+# Actualizar descripción
+lql update PROD-587 --description-file /tmp/desc.md
+```
+
+### `lql view` — Ver detalle de issue
+
+```bash
+lql view PROD-587
+```
+
+### `lql search` — Búsqueda por texto
+
+```bash
+lql search "basedpyright"
+lql search "OAuth token" --team PROD --state backlog,unstarted
+```
+
+Usa `searchIssues(term:)` de la API. Output idéntico a `list`.
+
+### `lql summary` — Resumen ejecutivo
+
+```bash
+lql summary                # team auto-detectado
+lql summary --all-teams    # global
+```
+
+### `lql comment` — Añadir comentario
+
+```bash
+# Inline
+lql comment PROD-587 "Investigado, el problema es X"
+
+# Desde archivo
+lql comment PROD-587 --file /tmp/comment.md
+
+# Desde stdin
+lql comment PROD-587 <<'EOF'
+## Progreso
+- [x] Investigar root cause
+- [ ] Implementar fix
+EOF
+```
+
+### `lql relate` — Crear relaciones
+
+```bash
+lql relate PROD-587 blocks PROD-588
+lql relate PROD-587 blocked-by PROD-515
+lql relate PROD-587 related PROD-520
+```
+
+Normaliza `blocked-by` → `blocks` con issue invertida.
+
+### `lql labels` — Listar labels disponibles
+
+```bash
+lql labels
+lql labels --team PROD
+```
+
+Para que el LLM nunca invente labels.
+
+### `lql curate` — Clasificar issues sin label (absorbe linear-curator)
+
+```bash
+# Ejecutar clasificación (lo que hacía linear-curator cada noche)
+lql curate
+
+# Dry-run: solo mostrar qué haría, sin aplicar nada
+lql curate --dry-run
+
+# Ajustar umbrales
+lql curate --auto-threshold 0.90 --review-threshold 0.60
+
+# Limitar scope
+lql curate --team PROD --limit 20
+```
+
+**Pipeline** (absorbe linear-curator):
+
+1. Fetch labels de taxonomía (workspace-level, no genéricos)
+2. Fetch issues activas sin ningún label de taxonomía
+3. Cargar últimas 20 correcciones de `corrections.jsonl` (few-shot)
+4. Clasificar en batches de 20 con LLM (Claude Haiku via OpenRouter, temperature=0)
+5. Separar por confianza:
+   - `≥ auto_threshold` (default 0.85): aplicar label automáticamente
+   - `≥ review_threshold` (default 0.50): dejar comentario en la issue con la sugerencia
+   - `< review_threshold`: skip
+6. Aplicar labels vía API (additive, no borra existentes)
+7. Dejar comentario `🏷 Curator suggestion: label (N%) — "razón"` en issues de review
+8. Notificar por Telegram (digest con auto/review/skip counts)
+
+**Output**:
+
+```
+Curating 12 unlabeled issues...
+  ✓ PROD-612 → tokamak (92%)
+  ✓ PROD-615 → qinqin (88%)
+  ? PROD-618 → blog? (71%) — saved for review
+  ⏭ PROD-620 — skipped (38%)
+── Auto: 8 | Review: 3 | Skip: 1
+```
+
+### `lql review` — Resolver issues pendientes de revisión
+
+Este es el comando que falta en linear-curator y que hace inútil el mensaje de Telegram actual.
+
+**Cómo encuentra los pendientes**: busca issues activas sin label de taxonomía que tengan un comentario `🏷 Curator suggestion:` (dejado por `curate`). No lee ningún fichero local — Linear es la fuente de verdad.
+
+```bash
+# Ver pendientes de revisión
+lql review
+
+# Aplicar la sugerencia del curator
+lql review PROD-618 --accept
+
+# Corregir la sugerencia (asignar label diferente)
+lql review PROD-618 --label wuwei
+
+# Descartar (no necesita label de taxonomía)
+lql review PROD-618 --skip
+
+# Procesar todos los pendientes de golpe (modo LLM)
+lql review --accept-all
+lql review --accept-all --min-confidence 0.75
+```
+
+**Output de `lql review`** (sin argumentos):
+
+```
+3 issues pendientes de revisión:
+
+1. PROD-618 [Backlog] "Configurar cron nocturno en wuwei"
+   Sugerencia: blog (71%) — "mentions pipeline and cron"
+
+2. PROD-621 [Todo] "Mover media y downloads de SSD a Yottamaster"
+   Sugerencia: wuwei (65%) — "hardware infrastructure"
+
+3. CONT-55 [Todo] "Registrarse en Metricool + conectar analytics"
+   Sugerencia: rrss (58%) — "social media analytics tool"
+```
+
+**Feedback loop automático**: Cuando se corrige una sugerencia (`--label wuwei` distinto al sugerido `blog`), se escribe en `corrections.jsonl`:
+
+```jsonl
+{"issue":"PROD-618","title":"Configurar cron nocturno en wuwei","curator_said":"blog","user_corrected":"wuwei","reason":"auto","timestamp":"2026-03-25T10:30:00Z"}
+```
+
+El campo `reason` es `"auto"` por defecto. Se puede añadir: `lql review PROD-618 --label wuwei --reason "infra task, not content"`.
+
+**Concurrencia con `curate`**: no hay fichero compartido. `curate` escribe comentarios en Linear, `review` lee comentarios de Linear y aplica labels vía API. Si ambos corren a la vez, el peor caso es que `curate` deje un comentario en una issue que `review` acaba de resolver — el comentario queda como audit trail inofensivo, y en la siguiente ejecución de `review` esa issue ya no aparece (ya tiene label).
+
+**Integración Telegram**: El digest nocturno cambia de formato:
+
+```
+Antes (inútil):
+  ❓ PROD-618: Configurar cron nocturno... → blog? (71%)
+  (el usuario tiene que abrir Linear y buscar la issue)
+
+Después (accionable):
+  ❓ 3 issues pendientes de review
+  → lql review (o lql review --accept-all --min-confidence 0.75)
+```
+
+El mensaje de Telegram ya no intenta ser la interfaz de review — solo avisa de que hay pendientes y dice qué comando ejecutar.
+
+### `lql triage` — Vista unificada de higiene
+
+Combina `summary` + `review` + detección de problemas:
+
+```bash
+lql triage
+lql triage --all-teams
+```
+
+**Output**:
+
+```
+═══ Linear Triage Report ═══
+
+OVERDUE (5):
+  PROD-587 [Backlog] qinqin — Importar sesiones desde backup (14d overdue)
+  CONT-4  [Backlog] — Blindar LinkedIn contra spam (34d overdue!)
+  ...
+
+NEEDS REVIEW (3):
+  PROD-618 → blog? (71%) | PROD-621 → wuwei? (65%) | CONT-55 → rrss? (58%)
+  → lql review
+
+HYGIENE:
+  ⚠ 2 issues sin project: PROD-529, PROD-527
+  ⚠ 1 issue sin label: PROD-530
+  ⚠ 3 issues en Backlog >30d sin actividad: CONT-4, CONT-9, CONT-16
+
+── Active: 44 | Overdue: 5 | Review: 3 | Stale: 3
+```
+
+## Configuración
+
+### Archivo `~/.config/lql/config.toml`
+
+```toml
+[auth]
+api_key_ref = "op://FRR DEV/Linear/api-key"  # leído via op read (con cache)
+
+[defaults]
+sort = "priority"        # default para list
+states = ["backlog", "unstarted", "started"]  # excluye completed/canceled
+limit = 50
+
+[context-map]
+# directorio → team, project, label
+"~/code/tokamak"         = { team = "PROD", project = "Tokamak",    label = "tokamak" }
+"~/code/qinqin"          = { team = "PROD", project = "Qinqin",     label = "qinqin" }
+"~/code/qualitra"        = { team = "PROD", project = "Qualitra",   label = "qualitra" }
+"~/code/frr.dev"         = { team = "CONT", project = "Blog",       label = "blog" }
+"~/code/wuwei"           = { team = "PRIV", label = "wuwei" }
+"~/code/kc-raven"        = { team = "KC",   label = "kc_raven" }
+"~/code/rustyclaw"       = { team = "PROD", project = "RustyClaw",  label = "rustyclaw" }
+"~/code/social-publisher" = { team = "TOOL", project = "Social Publisher", label = "workflows" }
+"~/code/auto_correct"    = { team = "TOOL", project = "auto_correct", label = "autocorrect" }
+"~/code/memento"         = { team = "TOOL", project = "memento",    label = "workflows" }
+"~/code/mcp-email"       = { team = "TOOL", label = "claude-code" }
+
+[state-aliases]
+# UI name → CLI value
+"Todo"        = "unstarted"
+"In Progress" = "started"
+"Done"        = "completed"
+"Canceled"    = "canceled"
+"Cancelled"   = "canceled"
+
+[priority-aliases]
+"urgent"  = 1
+"high"    = 2
+"medium"  = 3
+"low"     = 4
+"none"    = 0
+
+[flag-aliases]
+# Flags incorrectos comunes → corrección
+"--status"         = "--state"
+"--filter"         = "--search"    # sugiere comando correcto
+"--no-limit"       = "--limit 0"
+"--query"          = "--search"
+"--relates-to"     = "--relate"
+"--comment"        = "→ lql comment"
+
+[curator]
+# LLM para clasificación automática de labels
+llm_base_url = "https://openrouter.ai/api/v1"
+llm_model = "anthropic/claude-haiku-4-5-20251001"
+llm_api_key_ref = "op://FRR DEV/OpenRouter Blog/api-key"
+auto_threshold = 0.85       # >= esto: aplicar automáticamente
+review_threshold = 0.50     # >= esto: guardar para review
+batch_size = 20             # issues por batch LLM
+generic_labels = ["Bug", "Feature", "Improvement"]  # no cuentan como taxonomía
+
+[telegram]
+bot_token_ref = "op://FRR DEV/Telegram Alerts Bot/bot-token"
+chat_id_ref = "op://FRR DEV/Telegram Bot/group-id"
+```
+
+## Stack técnico
+
+- **Rust** (cargo project, edición 2024)
+- **clap** (derive) para CLI — flag aliases en compile time (`#[arg(alias = "status")]`)
+- **reqwest** (blocking) para HTTP — Linear API, OpenRouter, Telegram
+- **serde** + **serde_json** para JSON — escapado correcto by construction, el problema #1 (80+ reintentos) es imposible
+- **toml** para config
+- **fs2** para file locking (`corrections.jsonl`)
+- **Auth**: `op read` vía `std::process::Command` (usa el wrapper cache de `~/.local/bin/op`)
+- **LLM** (solo para `curate`): POST a OpenRouter (API OpenAI-compatible), response parseada con serde
+- **Telegram** (solo para `curate`): POST a Bot API, sin librería
+- **Sin async**: todo blocking. Un CLI no necesita concurrencia interna.
+
+### Por qué Rust y no Python
+
+| | Python | Rust |
+|---|---|---|
+| **Startup** | ~50ms (import overhead) | <1ms |
+| **Deploy** | Clonar repo + `uv sync` + `.venv` | Copiar un binario |
+| **JSON escaping** | `json.dumps` (correcto pero runtime) | `serde_json::to_value` (correcto by construction) |
+| **Flag validation** | Runtime (click) | Compile time (clap derive) |
+| **Cross-compile** | No aplica | `cargo build --target x86_64-unknown-linux-gnu` desde Mac → binario para wuwei |
+| **Dependencies en wuwei** | Python 3.12+, uv, venv, git clone | Nada. Un binario estático. |
+
+### Escapado seguro — la solución al problema #1
+
+```rust
+// serde_json NUNCA produce JSON roto.
+// Cualquier string (markdown, comillas, backticks, newlines) se escapa correctamente.
+
+let variables = serde_json::json!({
+    "input": {
+        "title": title,           // escapado automático
+        "description": desc,      // cualquier markdown funciona
+        "teamId": team_id,
+        "stateId": state_id,
+        "labelIds": label_ids,
+        "projectId": project_id,
+    }
+});
+
+let body = serde_json::json!({
+    "query": ISSUE_CREATE_MUTATION,  // const &str, query fija
+    "variables": variables,
+});
+
+// reqwest serializa body → JSON perfecto, siempre.
+client.post(GRAPHQL_URL)
+    .header("Authorization", &api_key)
+    .json(&body)
+    .send()?;
+```
+
+Esto elimina el 100% de los errores de escapado. No hay interpolación de strings, no hay shell piping, no hay jq. El compilador garantiza que el JSON es válido.
+
+### Datos persistentes
+
+```
+~/.local/share/lql/
+└── corrections.jsonl        # few-shot examples para el clasificador
+```
+
+Un solo fichero local. No es estado de la app — es un dataset de entrenamiento para el prompt del clasificador LLM.
+
+```jsonl
+{"issue":"PROD-618","title":"Configurar cron nocturno en wuwei","curator_said":"blog","user_corrected":"wuwei","reason":"infra task, not content","timestamp":"2026-03-10T..."}
+```
+
+- **Quién escribe**: `review` (append con `fcntl.flock` cuando el usuario corrige una sugerencia)
+- **Quién lee**: `curate` (snapshot de las últimas 20 correcciones al inicio, inyectadas como few-shot en el system prompt)
+- **Concurrencia**: semántica de log — append + snapshot. Sin conflicto.
+- **Crecimiento**: ~10 correcciones/mes. El fichero tendrá ~100 líneas en un año.
+
+### Pending reviews: viven en Linear, no en disco
+
+Las issues pendientes de revisión NO se persisten localmente. Una issue sin label de taxonomía **es** una pending review — Linear es la fuente de verdad.
+
+`curate` deja la sugerencia como **comentario en la issue**:
+
+```
+🏷 Curator suggestion: blog (71%) — "mentions pipeline and cron"
+```
+
+`review` lee ese comentario para mostrar la sugerencia. Si el usuario aplica el label (vía `review --accept` o `review --label X`), la issue desaparece del pending porque ya tiene label. El comentario queda como audit trail.
+
+Esto elimina `pending-reviews.jsonl` y con él todo riesgo de concurrencia entre `curate` y `review`.
+
+### Sin cache en disco
+
+Labels, teams y projects se fetchean de Linear en cada ejecución (~200ms). No hay cache entre procesos. Razón: cualquier cache en disco puede divergir de Linear (el usuario crea un label en la UI, el cache no lo tiene, `create --label nuevo` rechaza la validación local → falso negativo que impide trabajar). El coste de 200ms extra no justifica ese riesgo.
+
+Dentro de una misma ejecución (especialmente `curate`, que procesa ~100 issues), la metadata se cachea en memoria del proceso. Pero muere con él.
+
+### Multi-agent safe by design
+
+Múltiples agentes (Claude Code, Codex, otros) pueden usar `lql` concurrentemente sin coordinación:
+
+- **Sin cache en disco** → no hay estado compartido que pueda divergir
+- **API stateless** → cada proceso hace su propia request, Linear resuelve concurrencia server-side
+- **Context por cwd** → cada agente detecta su team/project independientemente
+- **Rate limit compartido** → todos usan la misma API key (~1500 req/h). Con 2-3 agentes activos no es un problema, pero 429 se maneja con retry + exponential backoff (2s, 4s, 8s, max 3 retries)
+- **Pending reviews en Linear** (comentarios) → `curate` escribe comentarios, `review` los lee. Concurrencia resuelta por Linear server-side. Sin fichero compartido.
+- **`corrections.jsonl`** (único fichero local) → append-only por `review`, snapshot-read por `curate`. Semántica de log, sin conflicto. `fcntl.flock` para appends por higiene.
+
+### Escapado seguro — la solución al problema #1
+
+```python
+# NUNCA construir queries con interpolación de strings:
+# MAL:  f'mutation {{ issueCreate(input: {{ title: "{title}" }}) }}'
+# BIEN: usar variables GraphQL
+
+query = """
+mutation CreateIssue($input: IssueCreateInput!) {
+  issueCreate(input: $input) {
+    success
+    issue { id identifier url title }
+  }
+}
+"""
+variables = {
+    "input": {
+        "title": title,           # escapado automático por json.dumps
+        "description": desc,      # cualquier markdown funciona
+        "teamId": team_id,
+        "stateId": state_id,
+        "labelIds": label_ids,
+        "projectId": project_id,
+    }
+}
+# httpx envía {"query": query, "variables": variables} → escapado perfecto
+```
+
+Esto elimina el 100% de los errores de escapado (25+ errores, 80+ reintentos).
+
+## Instalación
+
+```bash
+# Desarrollo (Mac)
+cd ~/code/lql
+cargo build --release
+cp target/release/lql ~/.local/bin/
+
+# O con cargo install
+cargo install --path .
+```
+
+## Cross-compile para wuwei
+
+wuwei es x86_64 Linux. Desde Mac:
+
+```bash
+# Una vez: instalar target
+rustup target add x86_64-unknown-linux-gnu
+
+# Build estático (musl para zero runtime deps)
+cargo build --release --target x86_64-unknown-linux-musl
+
+# Copiar a wuwei
+scp target/x86_64-unknown-linux-musl/release/lql wuwei.frr.dev:~/.local/bin/
+```
+
+Sin git clone, sin venv, sin runtime. Un binario.
+
+## Despliegue nocturno (wuwei)
+
+Reemplaza el systemd timer de `linear-curator`:
+
+```ini
+# ~/.config/systemd/user/lql-curate.service
+[Unit]
+Description=LQL — nightly curation
+
+[Service]
+Type=oneshot
+ExecStart=/home/admin_user/.local/bin/lql curate
+TimeoutStartSec=300
+EnvironmentFile=/home/admin_user/.config/lql/.env.local
+```
+
+```ini
+# ~/.config/systemd/user/lql-curate.timer
+[Unit]
+Description=LQL — nightly curation timer
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target
+```
+
+El role de Ansible se simplifica: ya no clona repos ni instala Python. Solo copia el binario cross-compilado, despliega config y `.env.local`, y habilita el timer.
+
+## Integración con Claude Code
+
+### Cambios en CLAUDE.md global
+
+```markdown
+## Linear
+- **CLI**: `lql` (wrapper custom). NUNCA usar `linear` (CLI oficial) ni MCP ni curl a api.linear.app.
+- Para gestionar issues, usar el skill `/issues` que delega en `lql`.
+```
+
+### Cambios en skill `/issues`
+
+El skill se simplifica drásticamente. Ya no necesita documentar flags, estados, workarounds, GraphQL queries, team IDs, project IDs, ni label taxonomía. Todo eso vive en lql. El skill pasa a ser:
+
+```
+# SIEMPRE usar lql, NUNCA linear CLI ni curl a api.linear.app
+lql <command> [args]
+
+# Ejemplos:
+lql list                              # auto-detect team del cwd
+lql list --label qinqin               # filtrar por label
+lql create "título" -d "desc"         # auto team/project/label
+lql update PROD-587 --state Done      # acepta UI names
+lql search "basedpyright"             # búsqueda por texto
+lql summary                           # resumen ejecutivo
+lql review                            # resolver pendientes del curator
+lql triage                            # vista unificada de higiene
+```
+
+El context-map, los aliases de estado/prioridad, y la taxonomía de labels viven en `~/.config/lql/config.toml`. Claude Code no necesita saber nada de eso.
+
+### Cambios en `memento`
+
+`memento` delega en `lql triage --all-teams` en vez de implementar su propia query GraphQL. Reduce el código de memento y centraliza la lógica.
+
+### Retiro de `linear-curator`
+
+linear-curator queda absorbido. El repo se archiva. El role de Ansible se actualiza para apuntar a lql.
+
+## Métricas de éxito
+
+| Métrica | Antes | Objetivo |
+|---|---|---|
+| Errores Linear por sesión | ~3 | 0 |
+| Reintentos por error | ~2.5 | 0 |
+| Tokens por `list` de 50 issues | ~7500 | ~2000 |
+| Fallbacks a GraphQL manual | ~30% de sesiones | 0% |
+| Labels inventados | ~10/mes | 0 |
+| Uso de MCP Linear | ~20/mes | 0 |
+| Issues sin label (curator pending) resueltas | días | minutos |
+| Servicios nocturnos desplegados | 2 (memento + curator) | 1 (lql curate) |
+
+## Estructura del proyecto
+
+```
+lql/
+├── Cargo.toml
+├── src/
+│   ├── main.rs              # CLI entry point (clap App)
+│   ├── cli.rs               # Clap derive structs, flag aliases, normalization
+│   ├── config.rs            # TOML parsing, context-map resolution
+│   ├── client.rs            # GraphQL client (reqwest blocking + serde)
+│   ├── auth.rs              # op read wrapper
+│   ├── format.rs            # Output formatting (compact + JSON)
+│   ├── commands/
+│   │   ├── list.rs
+│   │   ├── create.rs
+│   │   ├── update.rs
+│   │   ├── view.rs
+│   │   ├── search.rs
+│   │   ├── comment.rs
+│   │   ├── relate.rs
+│   │   ├── labels.rs
+│   │   ├── summary.rs
+│   │   ├── triage.rs
+│   │   ├── curate.rs        # LLM classification pipeline
+│   │   ├── review.rs        # Resolve pending reviews
+│   │   └── doctor.rs        # Validate config, auth, teams
+│   ├── curator/
+│   │   ├── classifier.rs    # LLM batch classification (OpenRouter)
+│   │   ├── corrections.rs   # Read/append corrections.jsonl
+│   │   └── telegram.rs      # Digest notification
+│   └── queries.rs           # GraphQL query/mutation constants
+├── tests/
+│   ├── format_test.rs       # Output format compliance
+│   ├── normalize_test.rs    # State/priority/flag alias tests
+│   └── config_test.rs       # TOML parsing, context-map
+└── config.example.toml
+```
+
+## Fases
+
+### Fase 1 — Core CLI
+
+- `list`, `create`, `update`, `view`, `search`, `comment`, `relate`, `labels`
+- Config TOML con context-map, state/priority aliases
+- Normalización automática de toda la interfaz (clap aliases + normalize layer)
+- GraphQL client con serde (escapado correcto by construction)
+- Output compacto + `--json`
+- Detección de duplicados en `create`
+- `lql doctor` — validar config, auth, teams, labels
+- Tests de formato y normalización
+
+### Fase 2 — Curator + Review
+
+- `curate` — absorbe pipeline de linear-curator (LLM classification via OpenRouter)
+- `review` — resolver pendientes leyendo comentarios del curator en Linear
+- `corrections.jsonl` (feedback loop: review → curate)
+- `summary`, `triage`
+- Notificación Telegram con mensaje accionable
+- Tests del clasificador con fixtures
+
+### Fase 3 — Integración + migración
+
+- Cross-compile para wuwei (musl static)
+- Actualizar skill `/issues` para usar `lql`
+- Actualizar `memento` para delegar en `lql triage`
+- Actualizar role Ansible: binario + config + timer (sin git clone, sin Python)
+- Push a git.frr.dev, deploy en wuwei
+- Archivar repo `linear-curator`
+
+## Easter eggs 🦀
+
+| Trigger | Output |
+|---|---|
+| `lql --version` | `lql 0.1.0 🦀 "Rewritten in Rust, obviously"` |
+| `lql doctor` (todo OK) | `✓ All checks passed. Ferris approves. 🦀` |
+| `lql doctor` (auth falla) | `✗ API key not found. Ferris is sad. 🦀💧` |
+| `lql curate` (0 unlabeled) | `No unlabeled issues. The crab rests. 🦀` |
+| `lql --riir` | `Already done. You're welcome. 🦀` |
+| `lql` (sin subcomando) | Help text con `🦀 Linear Query Language — because everything must be rewritten in Rust` |
+
+## Apéndice: Catálogo completo de errores que lql elimina
+
+| # | Error | Ocurrencias | Cómo lo elimina lql |
+|---|---|---|---|
+| 1 | `--sort` olvidado | 40+ | Default `priority` |
+| 2 | `--no-pager` en create/update | 15+ | Sin pager nunca |
+| 3 | `--status` vs `--state` | 11+ | Flag alias automático |
+| 4 | `Todo`/`Done`/`In Progress` | 12+ | State alias automático |
+| 5 | `--priority urgent` (string) | 17+ | Priority alias automático |
+| 6 | `--no-interactive` ausente | 64 | Nunca interactivo |
+| 7 | `--comment` en update | 11 | Subcomando `comment` separado |
+| 8 | Labels inventados | 10+ | `labels` cmd + validación |
+| 9 | Team retirado (TOK) | 97+ | Context-map, no teams retirados |
+| 10 | Project IDs inventados | 9 | Project por nombre, UUID resuelto |
+| 11 | Escapado JSON/GraphQL | 25+ (80+ retries) | Variables GraphQL |
+| 12 | `KeyError: 'data'` | 15+ | Error handling en respuesta |
+| 13 | Auth sin `&&` | 5+ | httpx directo, no shell piping |
+| 14 | jq parsing failures | 6+ | Sin jq, parseo nativo |
+| 15 | Campos GraphQL inventados | 10+ | Queries fijas y testeadas |
+| 16 | MCP Linear | 171 | No existe, solo lql |
+| 17 | Cascada parallel calls | 4+ | Operaciones atómicas |
+| 18 | `--team` olvidado | 5 | Auto-detect por cwd |
+| 19 | `--filter`/`--query`/`--label` en list | 6 | Flags nativos |
+| 20 | `linear search` (no existe) | 1 | `lql search` |
+
+**Total eliminado: 500+ errores/mes → 0**
