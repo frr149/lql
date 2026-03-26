@@ -140,6 +140,40 @@ fn integration_list_json() {
     }
 }
 
+// --- --no-label: issues sin labels ---
+
+#[test]
+#[ignore]
+fn integration_list_no_label() {
+    let (code, stdout, stderr) = run_lql(&["list", "--no-label", "--team", "TOOL", "--json"]);
+    assert_eq!(code, 0, "stderr: {stderr}");
+    for line in stdout.lines() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let parsed: serde_json::Value = serde_json::from_str(line)
+            .unwrap_or_else(|e| panic!("Invalid JSONL: {e}\nline: {line}"));
+        let labels = parsed.get("labels").and_then(|l| l.as_array());
+        assert!(
+            labels.is_some_and(|l| l.is_empty()),
+            "Expected empty labels, got: {parsed}"
+        );
+    }
+}
+
+// --- --no-label y --label son mutuamente excluyentes ---
+
+#[test]
+#[ignore]
+fn integration_no_label_with_label_error() {
+    let (code, _stdout, stderr) = run_lql(&["list", "--no-label", "--label", "bug", "--team", "TOOL"]);
+    assert_ne!(code, 0);
+    assert!(
+        stderr.contains("--no-label and --label are mutually exclusive"),
+        "stderr: {stderr}"
+    );
+}
+
 // --- Context desde cwd ---
 
 #[test]

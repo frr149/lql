@@ -56,14 +56,14 @@ fn handle_response(body: &str) -> Result<Value, String> {
     let json: Value =
         serde_json::from_str(body).map_err(|e| format!("Could not parse Linear API response: {e}"))?;
 
-    if let Some(errors) = json.get("errors") {
-        if let Some(first) = errors.as_array().and_then(|a| a.first()) {
-            let msg = first
-                .get("message")
-                .and_then(|m| m.as_str())
-                .unwrap_or("Unknown error");
-            return Err(format!("Linear API error: {msg}"));
-        }
+    if let Some(errors) = json.get("errors")
+        && let Some(first) = errors.as_array().and_then(|a| a.first())
+    {
+        let msg = first
+            .get("message")
+            .and_then(|m| m.as_str())
+            .unwrap_or("Unknown error");
+        return Err(format!("Linear API error: {msg}"));
     }
 
     json.get("data")
@@ -207,12 +207,12 @@ impl LinearMeta {
                     .map(|&h| (h, levenshtein(&needle, &h.to_lowercase())))
                     .collect();
                 scored.sort_by_key(|&(_, d)| d);
-                if let Some(&(best, dist)) = scored.first() {
-                    if dist <= 3 {
-                        return format!(
-                            "Team \"{key}\" does not exist. Did you mean: {best}?"
-                        );
-                    }
+                if let Some(&(best, dist)) = scored.first()
+                    && dist <= 3
+                {
+                    return format!(
+                        "Team \"{key}\" does not exist. Did you mean: {best}?"
+                    );
                 }
                 format!(
                     "Team \"{key}\" not found. Available: {}",
@@ -368,8 +368,8 @@ fn levenshtein(a: &str, b: &str) -> usize {
     for (i, row) in matrix.iter_mut().enumerate() {
         row[0] = i;
     }
-    for j in 0..=b.len() {
-        matrix[0][j] = j;
+    for (j, cell) in matrix[0].iter_mut().enumerate().take(b.len() + 1) {
+        *cell = j;
     }
 
     for i in 1..=a.len() {

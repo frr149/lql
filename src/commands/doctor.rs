@@ -73,11 +73,11 @@ pub fn run(config: &Config) -> Result<(), String> {
                     println!("✗ Context-map {path}: team \"{}\" not found in Linear", entry.team);
                     all_ok = false;
                 }
-                if let Some(ref label) = entry.label {
-                    if meta.find_label(label).is_err() {
-                        println!("✗ Context-map {path}: label \"{label}\" not found in Linear");
-                        all_ok = false;
-                    }
+                if let Some(ref label) = entry.label
+                    && meta.find_label(label).is_err()
+                {
+                    println!("✗ Context-map {path}: label \"{label}\" not found in Linear");
+                    all_ok = false;
                 }
             }
         }

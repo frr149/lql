@@ -129,10 +129,10 @@ impl Config {
 }
 
 fn expand_tilde(path: &str) -> String {
-    if let Some(rest) = path.strip_prefix("~/") {
-        if let Some(home) = dirs::home_dir() {
-            return format!("{}/{rest}", home.display());
-        }
+    if let Some(rest) = path.strip_prefix("~/")
+        && let Some(home) = dirs::home_dir()
+    {
+        return format!("{}/{rest}", home.display());
     }
     path.to_string()
 }
