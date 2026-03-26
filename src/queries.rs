@@ -113,51 +113,6 @@ mutation UpdateIssue($id: String!, $input: IssueUpdateInput!) {
 }
 "#;
 
-/// Ver issue con detalle
-pub const VIEW_QUERY: &str = r#"
-query ViewIssue($id: String!) {
-  issue(id: $id) {
-    id
-    identifier
-    title
-    priority
-    description
-    state {
-      name
-      type
-    }
-    labels {
-      nodes {
-        name
-      }
-    }
-    project {
-      name
-    }
-    team {
-      key
-    }
-    createdAt
-    dueDate
-    url
-    relations {
-      nodes {
-        type
-        relatedIssue {
-          identifier
-          title
-        }
-      }
-    }
-    comments {
-      nodes {
-        id
-      }
-    }
-  }
-}
-"#;
-
 /// Buscar issues por identifier (PROD-587 → UUID)
 pub const ISSUE_BY_IDENTIFIER: &str = r#"
 query IssueByIdentifier($filter: IssueFilter) {

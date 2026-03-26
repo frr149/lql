@@ -3,6 +3,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 /// Formatea una issue en formato compacto: ID [State] labels — Title (age, due)
+#[allow(dead_code)]
 pub fn format_issue_compact(issue: &Value) -> String {
     let id = issue
         .get("identifier")
@@ -364,6 +365,7 @@ fn format_due(issue: &Value) -> String {
     }
 }
 
+#[allow(dead_code)]
 fn build_meta(age: &str, due: &str) -> String {
     let mut parts = Vec::new();
     if !age.is_empty() {

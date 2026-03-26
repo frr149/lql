@@ -156,6 +156,7 @@ pub struct LinearMeta {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct TeamInfo {
     pub id: String,
     pub key: String,
@@ -224,16 +225,7 @@ impl LinearMeta {
         team.states.iter().find(move |s| s.state_type == state_type)
     }
 
-    pub fn find_state_by_type_list<'a>(
-        &'a self,
-        team: &'a TeamInfo,
-        state_types: &[String],
-    ) -> Vec<&'a StateInfo> {
-        team.states
-            .iter()
-            .filter(|s| state_types.iter().any(|t| t == &s.state_type))
-            .collect()
-    }
+
 
     pub fn find_label(&self, name: &str) -> Result<&LabelInfo, String> {
         self.labels
@@ -365,22 +357,6 @@ fn get_str(val: &Value, key: &str) -> Result<String, String> {
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
         .ok_or_else(|| format!("Missing field '{key}' in API response"))
-}
-
-/// Busca labels similares (substring match simple)
-fn find_similar<'a>(needle: &str, haystack: &[&'a str]) -> Vec<&'a str> {
-    let needle_lower = needle.to_lowercase();
-    haystack
-        .iter()
-        .filter(|h| {
-            let h_lower = h.to_lowercase();
-            h_lower.contains(&needle_lower)
-                || needle_lower.contains(&h_lower)
-                || levenshtein(&needle_lower, &h_lower) <= 3
-        })
-        .copied()
-        .take(3)
-        .collect()
 }
 
 /// Distancia de Levenshtein simple
@@ -746,29 +722,6 @@ mod tests {
     fn test_levenshtein_similar() {
         // "appstore" vs "autocorrect" = distance > 3
         assert!(levenshtein("appstore", "autocorrect") > 3);
-    }
-
-    // --- find_similar ---
-
-    #[test]
-    fn test_find_similar_substring() {
-        let haystack = vec!["tokamak", "acme", "blog", "autocorrect"];
-        let similar = find_similar("toka", &haystack);
-        assert!(similar.contains(&"tokamak"));
-    }
-
-    #[test]
-    fn test_find_similar_levenshtein() {
-        let haystack = vec!["tokamak", "acme", "blog"];
-        let similar = find_similar("tokamac", &haystack); // 1 edit distance
-        assert!(similar.contains(&"tokamak"));
-    }
-
-    #[test]
-    fn test_find_similar_no_match() {
-        let haystack = vec!["tokamak", "acme", "blog"];
-        let similar = find_similar("zzzzzzzzzzz", &haystack);
-        assert!(similar.is_empty());
     }
 
     // --- Meta parsing from real fixture ---
