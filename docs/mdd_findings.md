@@ -106,13 +106,40 @@ Each finding becomes either:
 | Category | Count | Details |
 |----------|-------|---------|
 | ✅ Layer 1 correct | 8 | Aliases, normalization, validation, formats |
-| ⚠ Improvement needed | 1 | Label error message too verbose (#5) |
-| 💡 Design question | 1 | Flag name normalization visibility (#7) |
+| ⚠ Improvement needed | 1 | Label error message too verbose (#5) — fixed |
+| 💡 Design question | 1 | Flag name normalization visibility (#7) — resolved: silent alias |
 | 📝 Noise | 1 | Cargo warnings (#1) |
 
-**Layer 1 hit rate: 8/10 findings validated the original design.** One improvement needed (verbose error), one open design question (flag visibility). No critical gaps found.
-
 **Key MDD insight:** The biggest surprise was NOT an error — it was finding that everything worked as designed. The 500+ historical errors from Layer 1 successfully predicted what Layer 2 would test. The two-layer approach validates itself: Layer 1 built the right defenses, Layer 2 confirmed they hold.
+
+## KPI: Layer 1 Hit Rate
+
+Measures how well the upfront design (PRD + ERR test specs) predicted real-world behavior.
+
+**Definition:** Of all findings discovered during Layer 2 adversarial testing, what percentage was already correctly handled by the Layer 1 design?
+
+| Metric | Value | Notes |
+|--------|-------|-------|
+| Layer 2 findings | 10 | First adversarial session (2026-03-26) |
+| Already correct in Layer 1 | 8 | Design predicted real behavior |
+| Gaps found | 1 | Label error verbosity (fixed) |
+| Open questions | 1 | Flag visibility (resolved: silent) |
+| **Hit rate** | **80%** | |
+
+**ERR test coverage (quantitative):**
+
+| Metric | Value |
+|--------|-------|
+| Total ERR specs in PRD | 75 |
+| Unit-testable (no API) | 64 |
+| Unit tests passing | 64/64 (100%) |
+| Integration-only (need API/mocking) | 11 |
+| Out of scope (v2.0) | 1 (ERR-28) |
+| **Overall ERR coverage** | **85%** |
+
+The 11 remaining are integration tests that require real Linear API calls or I/O mocking (stdin, op process). They test: op read timeout (ERR-46..47), issue not found (ERR-53..54), search empty results (ERR-64), comment from stdin (ERR-67), duplicate detection (ERR-72..73), concurrency (ERR-74..75).
+
+**Why this matters:** A high Layer 1 hit rate means the "design from anticipated errors" approach works — the cost of upfront ERR specification is repaid by fewer surprises during real use. A low hit rate would signal that the PRD is disconnected from reality and Layer 2 should start earlier.
 
 ## Core Principle (emerged from discussion)
 
