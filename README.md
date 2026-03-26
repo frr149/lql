@@ -78,17 +78,48 @@ The primary consumer is an LLM reading the output. lql uses [TOON](https://toonf
 
 ## Install
 
+### Homebrew (macOS & Linux)
+
 ```bash
-cargo install --path .
+brew tap frr149/lql
+brew install lql
 ```
 
-Or with the justfile:
+### Shell installer (macOS & Linux)
 
 ```bash
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/frr149/lql/releases/latest/download/lql-installer.sh | sh
+```
+
+### PowerShell installer (Windows)
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://github.com/frr149/lql/releases/latest/download/lql-installer.ps1 | iex"
+```
+
+### Windows MSI
+
+Download from [GitHub Releases](https://github.com/frr149/lql/releases/latest).
+
+### From source
+
+```bash
+cargo install --path .
+# or
 just install
 ```
 
-Requires a [1Password CLI](https://developer.1password.com/docs/cli/) setup with a Linear API key.
+### Update
+
+If you installed with the shell/PowerShell installer, lql includes a built-in updater:
+
+```bash
+lql-update
+```
+
+### Requirements
+
+A [1Password CLI](https://developer.1password.com/docs/cli/) setup with a Linear API key stored at `op://Private/Linear/api-key` (configurable in `~/.config/lql/config.toml`).
 
 ## Usage
 
