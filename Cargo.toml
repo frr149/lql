@@ -3,8 +3,16 @@ name = "lql"
 version = "1.0.0"
 edition = "2024"
 description = "Linear Query Language — CLI for Linear optimized for LLM consumption"
+authors = ["Fernando Rodriguez Romero <fernando@frr.dev>"]
+homepage = "https://frr.dev"
 license = "MIT"
 repository = "https://github.com/frr149/lql"
+
+[package.metadata.wix]
+upgrade-guid = "3B53BE09-F38D-44A2-ACEB-D034326FAAE7"
+path-guid = "21CF6762-4B8E-4E2A-8B6C-02CC886B6C54"
+license = false
+eula = false
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
@@ -18,3 +26,8 @@ toon-format = { version = "0.4.4", default-features = false }
 
 [dev-dependencies]
 proptest = "1"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
