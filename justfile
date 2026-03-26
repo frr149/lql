@@ -16,6 +16,10 @@ integration:
 all:
     cargo test -- --include-ignored
 
+# Instalar en ~/.cargo/bin/
+install:
+    cargo install --path .
+
 # Compilar release nativo
 release:
     cargo build --release
