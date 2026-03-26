@@ -142,10 +142,8 @@ pub fn run(config: &Config, opts: &ListOpts) -> Result<(), String> {
             println!("{}", format::format_issue_json(issue));
         }
     } else {
-        for issue in &issues {
-            println!("{}", format::format_issue_compact(issue));
-        }
-        // Collect owned values for footer
+        // TOON format: tabular, autodescriptivo, ~30 tokens/issue
+        println!("{}", format::format_issues_toon(&issues));
         let owned: Vec<serde_json::Value> = issues.iter().map(|i| (*i).clone()).collect();
         println!("{}", format::format_footer(&owned, None, limit));
     }

@@ -49,9 +49,8 @@ pub fn run(config: &Config, opts: &SearchOpts) -> Result<(), String> {
             println!("{}", format::format_issue_json(issue));
         }
     } else {
-        for issue in issues {
-            println!("{}", format::format_issue_compact(issue));
-        }
+        let issue_refs: Vec<&serde_json::Value> = issues.iter().collect();
+        println!("{}", format::format_issues_toon(&issue_refs));
         println!("{}", format::format_footer(issues, None, limit));
     }
 
