@@ -57,13 +57,8 @@ pub fn run(config: &Config, opts: &ListOpts) -> Result<(), String> {
         } else {
             config.defaults.states.clone()
         };
-        let matching_states = meta.find_state_by_type_list(team_info, &state_types);
-        if !matching_states.is_empty() {
-            let state_ids: Vec<serde_json::Value> = matching_states
-                .iter()
-                .map(|s| serde_json::json!({"eq": s.id}))
-                .collect();
-            filter["state"] = serde_json::json!({"id": {"or": state_ids}});
+        if !state_types.is_empty() {
+            filter["state"] = serde_json::json!({"type": {"in": state_types}});
         }
     } else {
         // all-teams: filtrar por estados por defecto
@@ -75,11 +70,7 @@ pub fn run(config: &Config, opts: &ListOpts) -> Result<(), String> {
         } else {
             config.defaults.states.clone()
         };
-        let state_type_filter: Vec<serde_json::Value> = state_types
-            .iter()
-            .map(|t| serde_json::json!({"eq": *t}))
-            .collect();
-        filter["state"] = serde_json::json!({"type": {"or": state_type_filter}});
+        filter["state"] = serde_json::json!({"type": {"in": state_types}});
 
         if let Some(ref names) = opts.label {
             let mut label_ids = Vec::new();
@@ -114,35 +105,49 @@ pub fn run(config: &Config, opts: &ListOpts) -> Result<(), String> {
     };
 
     let sort = cli::normalize_sort(&opts.sort);
-    let order_by = match sort.as_str() {
-        "updatedAt" => "updatedAt",
-        "createdAt" => "createdAt",
-        _ => "priority",
-    };
+    let sort_client_side = !matches!(sort.as_str(), "updatedAt" | "createdAt");
 
-    let variables = serde_json::json!({
+    let mut variables = serde_json::json!({
         "filter": filter,
         "first": limit,
-        "orderBy": order_by,
     });
+    // Solo pasar orderBy si es un valor válido de la API
+    if !sort_client_side {
+        variables["orderBy"] = serde_json::json!(sort);
+    }
 
     let data = client.query(crate::queries::ISSUES_QUERY, variables)?;
 
-    let issues = data
+    let issues_raw = data
         .get("issues")
         .and_then(|i| i.get("nodes"))
         .and_then(|n| n.as_array())
         .ok_or("Could not parse issues from response")?;
 
+    // Sort client-side para priority (no soportado por API)
+    let issues: Vec<&serde_json::Value> = if sort_client_side {
+        let mut sorted: Vec<&serde_json::Value> = issues_raw.iter().collect();
+        // priority 0 = none, va al final; 1 = urgent va primero
+        sorted.sort_by_key(|i| {
+            let p = i.get("priority").and_then(|p| p.as_u64()).unwrap_or(0);
+            if p == 0 { 5 } else { p } // none (0) después de low (4)
+        });
+        sorted
+    } else {
+        issues_raw.iter().collect()
+    };
+
     if opts.json {
-        for issue in issues {
+        for issue in &issues {
             println!("{}", format::format_issue_json(issue));
         }
     } else {
-        for issue in issues {
+        for issue in &issues {
             println!("{}", format::format_issue_compact(issue));
         }
-        println!("{}", format::format_footer(issues, None, limit));
+        // Collect owned values for footer
+        let owned: Vec<serde_json::Value> = issues.iter().map(|i| (*i).clone()).collect();
+        println!("{}", format::format_footer(&owned, None, limit));
     }
 
     Ok(())
