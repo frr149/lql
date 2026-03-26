@@ -1,5 +1,5 @@
 use crate::cli::ViewOpts;
-use crate::client::Client;
+use crate::client::{Client, GraphQLClient};
 use crate::commands::update::find_issue_by_identifier;
 use crate::config::Config;
 use crate::format;

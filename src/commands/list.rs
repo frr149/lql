@@ -1,5 +1,5 @@
 use crate::cli::{self, ListOpts};
-use crate::client::{Client, LinearMeta};
+use crate::client::{Client, GraphQLClient, LinearMeta};
 use crate::config::Config;
 use crate::format;
 

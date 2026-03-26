@@ -71,6 +71,15 @@ fn handle_response(body: &str) -> Result<Value, String> {
         .ok_or_else(|| "Linear API response missing 'data' field".to_string())
 }
 
+/// Trait para ejecutar queries GraphQL — permite mocking en tests
+pub trait GraphQLClient {
+    fn query(&self, query: &str, variables: Value) -> Result<Value, String>;
+
+    fn query_no_vars(&self, query: &str) -> Result<Value, String> {
+        self.query(query, serde_json::json!({}))
+    }
+}
+
 pub struct Client {
     api_key: String,
     http: reqwest::blocking::Client,
@@ -82,9 +91,10 @@ impl Client {
         let http = reqwest::blocking::Client::new();
         Ok(Self { api_key, http })
     }
+}
 
-    /// Ejecuta una query GraphQL con variables
-    pub fn query(&self, query: &str, variables: Value) -> Result<Value, String> {
+impl GraphQLClient for Client {
+    fn query(&self, query: &str, variables: Value) -> Result<Value, String> {
         let body = serde_json::json!({
             "query": query,
             "variables": variables,
@@ -135,11 +145,6 @@ impl Client {
         }
         Err(format!("Failed after {MAX_RETRIES} retries: {last_err}"))
     }
-
-    /// Shortcut: query sin variables
-    pub fn query_no_vars(&self, query: &str) -> Result<Value, String> {
-        self.query(query, serde_json::json!({}))
-    }
 }
 
 /// Metadata cacheada de Linear (teams, states, labels, projects)
@@ -179,7 +184,7 @@ pub struct LabelInfo {
 }
 
 impl LinearMeta {
-    pub fn fetch(client: &Client) -> Result<Self, String> {
+    pub fn fetch(client: &dyn GraphQLClient) -> Result<Self, String> {
         let data = client.query_no_vars(crate::queries::META_QUERY)?;
 
         let teams = parse_teams(&data)?;

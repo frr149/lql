@@ -1,5 +1,5 @@
 use crate::cli::{self, UpdateOpts};
-use crate::client::{Client, LinearMeta};
+use crate::client::{Client, GraphQLClient, LinearMeta};
 use crate::config::Config;
 use crate::format;
 
@@ -146,7 +146,7 @@ pub fn run(config: &Config, opts: &UpdateOpts) -> Result<(), String> {
 
 /// Busca una issue por identifier (PROD-587) y devuelve los datos
 pub fn find_issue_by_identifier(
-    client: &Client,
+    client: &dyn GraphQLClient,
     identifier: &str,
 ) -> Result<serde_json::Value, String> {
     // Parsear team key y number del identifier
@@ -190,6 +190,21 @@ pub fn parse_identifier(identifier: &str) -> Result<(String, u32), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::client::GraphQLClient;
+
+    struct MockClient {
+        response: Result<serde_json::Value, String>,
+    }
+
+    impl GraphQLClient for MockClient {
+        fn query(
+            &self,
+            _query: &str,
+            _variables: serde_json::Value,
+        ) -> Result<serde_json::Value, String> {
+            self.response.clone()
+        }
+    }
 
     // --- Identifier parsing ---
 
@@ -203,7 +218,7 @@ mod tests {
     #[test]
     fn test_parse_identifier_lowercase() {
         let (team, num) = parse_identifier("prod-587").unwrap();
-        assert_eq!(team, "PROD"); // normaliza a uppercase
+        assert_eq!(team, "PROD");
         assert_eq!(num, 587);
     }
 
@@ -227,5 +242,55 @@ mod tests {
         let (team, num) = parse_identifier("TOOL-33").unwrap();
         assert_eq!(team, "TOOL");
         assert_eq!(num, 33);
+    }
+
+    // --- ERR-53: issue no encontrada (API devuelve nodes vacío) ---
+    #[test]
+    fn test_find_issue_not_found_empty_nodes() {
+        let client = MockClient {
+            response: Ok(serde_json::json!({
+                "issues": {"nodes": []}
+            })),
+        };
+        let err = find_issue_by_identifier(&client, "PROD-99999").unwrap_err();
+        assert!(err.contains("PROD-99999 not found"), "{err}");
+    }
+
+    // ERR-53b: API devuelve error GraphQL
+    #[test]
+    fn test_find_issue_api_error() {
+        let client = MockClient {
+            response: Err("Linear API error: Entity not found".to_string()),
+        };
+        let err = find_issue_by_identifier(&client, "PROD-99999").unwrap_err();
+        assert!(err.contains("Entity not found"), "{err}");
+    }
+
+    // ERR-53c: API devuelve estructura inesperada
+    #[test]
+    fn test_find_issue_malformed_response() {
+        let client = MockClient {
+            response: Ok(serde_json::json!({"something": "else"})),
+        };
+        let err = find_issue_by_identifier(&client, "PROD-587").unwrap_err();
+        assert!(err.contains("not found"), "{err}");
+    }
+
+    // ERR-54: issue encontrada exitosamente
+    #[test]
+    fn test_find_issue_success() {
+        let client = MockClient {
+            response: Ok(serde_json::json!({
+                "issues": {"nodes": [{
+                    "id": "uuid-123",
+                    "identifier": "PROD-587",
+                    "title": "Test issue",
+                    "state": {"name": "Backlog", "type": "backlog"},
+                    "team": {"key": "PROD"},
+                }]}
+            })),
+        };
+        let issue = find_issue_by_identifier(&client, "PROD-587").unwrap();
+        assert_eq!(issue["id"], "uuid-123");
     }
 }

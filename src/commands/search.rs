@@ -1,5 +1,5 @@
 use crate::cli::{self, SearchOpts};
-use crate::client::Client;
+use crate::client::{Client, GraphQLClient};
 use crate::config::Config;
 use crate::format;
 
@@ -55,4 +55,36 @@ pub fn run(config: &Config, opts: &SearchOpts) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::format;
+
+    // ERR-64: search sin resultados muestra "0 issues", no error
+    #[test]
+    fn test_search_empty_results_footer() {
+        let empty: Vec<serde_json::Value> = vec![];
+        let footer = format::format_footer(&empty, None, 50);
+        assert!(footer.contains("0 issues"), "{footer}");
+    }
+
+    // ERR-64b: search con resultados formatea correctamente
+    #[test]
+    fn test_search_results_toon() {
+        let issues = vec![serde_json::json!({
+            "identifier": "PROD-587",
+            "state": {"name": "Backlog", "type": "backlog"},
+            "labels": {"nodes": [{"name": "tokamak"}]},
+            "title": "Test issue",
+            "priority": 2,
+            "createdAt": "2026-03-11T10:00:00Z",
+            "dueDate": null,
+            "project": {"name": "Tokamak"},
+            "team": {"key": "PROD"},
+        })];
+        let refs: Vec<&serde_json::Value> = issues.iter().collect();
+        let toon = format::format_issues_toon(&refs);
+        assert!(toon.contains("PROD-587"), "{toon}");
+    }
 }
