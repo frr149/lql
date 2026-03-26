@@ -113,3 +113,22 @@ Each finding becomes either:
 **Layer 1 hit rate: 8/10 findings validated the original design.** One improvement needed (verbose error), one open design question (flag visibility). No critical gaps found.
 
 **Key MDD insight:** The biggest surprise was NOT an error — it was finding that everything worked as designed. The 500+ historical errors from Layer 1 successfully predicted what Layer 2 would test. The two-layer approach validates itself: Layer 1 built the right defenses, Layer 2 confirmed they hold.
+
+## Core Principle (emerged from discussion)
+
+**Adapt what doesn't destroy. Reject what destroys. Always say what you assumed.**
+
+This is Postel's Law (TCP robustness principle: "be conservative in what you send, liberal in what you accept") with two additions:
+
+1. **Liberality limit:** if accepting would corrupt data, reject
+2. **Transparency:** always state what was received vs what was assumed
+
+| Input | Destructive? | Action | Message |
+|-------|-------------|--------|---------|
+| `--status Done` | No | Accept | `ℹ --status → assumed --state` |
+| `--state Todo` | No | Normalize | `ℹ State "Todo" → normalized to "unstarted"` |
+| `--priority urgent` | No | Normalize | `ℹ Priority "urgent" → normalized to 1` |
+| `--label kubernetes` | **Yes** (garbage in Linear) | **Reject** | `✗ Label "kubernetes" not found` |
+| `--team TOK` | **Yes** (retired team) | **Reject** | `✗ Team TOK is retired` |
+
+This principle is the Sancho Panza contract: redirect the charge when it hits a windmill, but tackle Don Quixote to the ground when he's about to ride off a cliff.
