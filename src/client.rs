@@ -363,3 +363,228 @@ fn levenshtein(a: &str, b: &str) -> usize {
 
     matrix[a.len()][b.len()]
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Construye LinearMeta desde el fixture real meta.json
+    fn meta_from_fixture() -> LinearMeta {
+        let path = format!("{}/tests/fixtures/meta.json", env!("CARGO_MANIFEST_DIR"));
+        let content = std::fs::read_to_string(&path).unwrap();
+        let fixture: Value = serde_json::from_str(&content).unwrap();
+        let data = &fixture["data"];
+        let teams = parse_teams(data).unwrap();
+        let labels = parse_labels(data).unwrap();
+        LinearMeta { teams, labels }
+    }
+
+    // --- ERR-23..27: Label validation ---
+
+    // ERR-23: label inexistente rechazado con sugerencias
+    #[test]
+    fn test_label_not_found_with_similar() {
+        let meta = meta_from_fixture();
+        let err = meta.find_label("tokamax").unwrap_err(); // similar a "tokamak"
+        assert!(err.contains("not found"), "Should say not found: {err}");
+        assert!(err.contains("Available:"), "Should list available: {err}");
+        assert!(err.contains("tokamak"), "Should suggest similar: {err}");
+    }
+
+    // ERR-24: label completamente inventado
+    #[test]
+    fn test_label_invented_not_found() {
+        let meta = meta_from_fixture();
+        let err = meta.find_label("kubernetes").unwrap_err();
+        assert!(err.contains("not found"));
+    }
+
+    // ERR-25: label inventado "qa"
+    #[test]
+    fn test_label_qa_not_found() {
+        let meta = meta_from_fixture();
+        assert!(meta.find_label("datadog").is_err());
+    }
+
+    // ERR-26: label inventado
+    #[test]
+    fn test_label_nonexistent() {
+        let meta = meta_from_fixture();
+        assert!(meta.find_label("zzz-no-existe").is_err());
+    }
+
+    // ERR-27: label existente funciona
+    #[test]
+    fn test_label_existing_found() {
+        let meta = meta_from_fixture();
+        let label = meta.find_label("tokamak").unwrap();
+        assert_eq!(label.name, "tokamak");
+    }
+
+    // Label case-insensitive
+    #[test]
+    fn test_label_case_insensitive() {
+        let meta = meta_from_fixture();
+        assert!(meta.find_label("Tokamak").is_ok());
+        assert!(meta.find_label("TOKAMAK").is_ok());
+        assert!(meta.find_label("LQL").is_ok());
+    }
+
+    // --- ERR-29..33: Project resolution ---
+
+    // ERR-29: project por nombre exacto
+    #[test]
+    fn test_project_exact_name() {
+        let meta = meta_from_fixture();
+        let prod = meta.find_team("PROD").unwrap();
+        let project = meta.find_project(prod, "Tokamak").unwrap();
+        assert_eq!(project.name, "Tokamak");
+    }
+
+    // ERR-30: project por nombre case-insensitive
+    #[test]
+    fn test_project_case_insensitive() {
+        let meta = meta_from_fixture();
+        let prod = meta.find_team("PROD").unwrap();
+        assert!(meta.find_project(prod, "tokamak").is_ok());
+        assert!(meta.find_project(prod, "TOKAMAK").is_ok());
+    }
+
+    // ERR-32: project inexistente
+    #[test]
+    fn test_project_not_found() {
+        let meta = meta_from_fixture();
+        let prod = meta.find_team("PROD").unwrap();
+        let err = meta.find_project(prod, "Dashboard").unwrap_err();
+        assert!(err.contains("not found"), "Should say not found: {err}");
+        assert!(err.contains("Available:"), "Should list available: {err}");
+    }
+
+    // ERR-33: project ID numérico rechazado
+    #[test]
+    fn test_project_numeric_id_rejected() {
+        let meta = meta_from_fixture();
+        let prod = meta.find_team("PROD").unwrap();
+        let err = meta.find_project(prod, "686615456359").unwrap_err();
+        assert!(err.contains("Use project name, not ID"), "{err}");
+    }
+
+    // --- Teams ---
+
+    // Team by key
+    #[test]
+    fn test_find_team_by_key() {
+        let meta = meta_from_fixture();
+        assert!(meta.find_team("PROD").is_ok());
+        assert!(meta.find_team("TOOL").is_ok());
+        assert!(meta.find_team("CONT").is_ok());
+    }
+
+    // Team case-insensitive
+    #[test]
+    fn test_find_team_case_insensitive() {
+        let meta = meta_from_fixture();
+        assert!(meta.find_team("prod").is_ok());
+        assert!(meta.find_team("Prod").is_ok());
+    }
+
+    // Team not found
+    #[test]
+    fn test_find_team_not_found() {
+        let meta = meta_from_fixture();
+        let err = meta.find_team("NONEXISTENT").unwrap_err();
+        assert!(err.contains("not found"));
+        assert!(err.contains("Available:"));
+    }
+
+    // --- States ---
+
+    // find_state by type
+    #[test]
+    fn test_find_state_backlog() {
+        let meta = meta_from_fixture();
+        let prod = meta.find_team("PROD").unwrap();
+        let state = meta.find_state(prod, "backlog");
+        assert!(state.is_some());
+        assert_eq!(state.unwrap().state_type, "backlog");
+    }
+
+    #[test]
+    fn test_find_state_completed() {
+        let meta = meta_from_fixture();
+        let prod = meta.find_team("PROD").unwrap();
+        let state = meta.find_state(prod, "completed");
+        assert!(state.is_some());
+    }
+
+    #[test]
+    fn test_find_state_nonexistent() {
+        let meta = meta_from_fixture();
+        let prod = meta.find_team("PROD").unwrap();
+        assert!(meta.find_state(prod, "nonexistent").is_none());
+    }
+
+    // --- Levenshtein ---
+
+    #[test]
+    fn test_levenshtein_identical() {
+        assert_eq!(levenshtein("tokamak", "tokamak"), 0);
+    }
+
+    #[test]
+    fn test_levenshtein_one_char() {
+        assert_eq!(levenshtein("tokamak", "tokamac"), 1);
+    }
+
+    #[test]
+    fn test_levenshtein_similar() {
+        // "appstore" vs "autocorrect" = distance > 3
+        assert!(levenshtein("appstore", "autocorrect") > 3);
+    }
+
+    // --- find_similar ---
+
+    #[test]
+    fn test_find_similar_substring() {
+        let haystack = vec!["tokamak", "qinqin", "blog", "autocorrect"];
+        let similar = find_similar("toka", &haystack);
+        assert!(similar.contains(&"tokamak"));
+    }
+
+    #[test]
+    fn test_find_similar_levenshtein() {
+        let haystack = vec!["tokamak", "qinqin", "blog"];
+        let similar = find_similar("tokamac", &haystack); // 1 edit distance
+        assert!(similar.contains(&"tokamak"));
+    }
+
+    #[test]
+    fn test_find_similar_no_match() {
+        let haystack = vec!["tokamak", "qinqin", "blog"];
+        let similar = find_similar("zzzzzzzzzzz", &haystack);
+        assert!(similar.is_empty());
+    }
+
+    // --- Meta parsing from real fixture ---
+
+    #[test]
+    fn test_parse_meta_fixture_completeness() {
+        let meta = meta_from_fixture();
+
+        // Todos los teams del context-map deben existir
+        for key in &["PROD", "CONT", "PRIV", "TOOL", "KC"] {
+            assert!(
+                meta.find_team(key).is_ok(),
+                "Team {key} should exist in fixture"
+            );
+        }
+
+        // Labels del context-map deben existir
+        for label in &["tokamak", "qinqin", "blog", "lql"] {
+            assert!(
+                meta.find_label(label).is_ok(),
+                "Label {label} should exist in fixture"
+            );
+        }
+    }
+}

@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 #[command(
     name = "lql",
     version,
@@ -11,7 +11,7 @@ pub struct Cli {
     pub command: Command,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug)]
 pub enum Command {
     /// Listar issues
     List(ListOpts),
@@ -37,7 +37,7 @@ pub enum Command {
     Raw(RawOpts),
 }
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 pub struct ListOpts {
     /// Filtrar por estado (acepta nombres UI: Todo, Done, "In Progress")
     #[arg(long, alias = "status", value_delimiter = ',')]
@@ -90,7 +90,7 @@ pub struct ListOpts {
     pub no_interactive: bool,
 }
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 pub struct CreateOpts {
     /// Título de la issue
     pub title: String,
@@ -142,7 +142,7 @@ pub struct CreateOpts {
     pub no_interactive: bool,
 }
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 pub struct UpdateOpts {
     /// Issue ID (ej: PROD-587)
     pub issue_id: String,
@@ -184,7 +184,7 @@ pub struct UpdateOpts {
     pub json: bool,
 }
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 pub struct ViewOpts {
     /// Issue ID (ej: PROD-587)
     pub issue_id: String,
@@ -194,7 +194,7 @@ pub struct ViewOpts {
     pub json: bool,
 }
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 pub struct SearchOpts {
     /// Término de búsqueda
     pub query: String,
@@ -216,7 +216,7 @@ pub struct SearchOpts {
     pub json: bool,
 }
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 pub struct CommentOpts {
     /// Issue ID (ej: PROD-587)
     pub issue_id: String,
@@ -229,7 +229,7 @@ pub struct CommentOpts {
     pub file: Option<String>,
 }
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 pub struct RelateOpts {
     /// Issue origen (ej: PROD-587)
     pub from: String,
@@ -241,7 +241,7 @@ pub struct RelateOpts {
     pub to: String,
 }
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 pub struct LabelsOpts {
     /// Filtrar por team
     #[arg(long)]
@@ -252,7 +252,7 @@ pub struct LabelsOpts {
     pub json: bool,
 }
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 pub struct RawOpts {
     /// Query GraphQL inline
     pub query: Option<String>,
@@ -450,5 +450,183 @@ mod tests {
     #[test]
     fn test_normalize_sort_priority_passthrough() {
         assert_eq!(normalize_sort("priority"), "priority");
+    }
+
+    // --- ERR-11, ERR-12: flags ignorados silenciosamente ---
+
+    #[test]
+    fn test_no_pager_accepted_silently() {
+        // --no-pager debe ser aceptado sin error por clap
+        let result = Cli::try_parse_from(["lql", "list", "--no-pager"]);
+        assert!(result.is_ok(), "ERR-11: --no-pager should be accepted: {result:?}");
+    }
+
+    #[test]
+    fn test_no_interactive_accepted_silently() {
+        let result = Cli::try_parse_from(["lql", "list", "--no-interactive"]);
+        assert!(result.is_ok(), "ERR-12: --no-interactive should be accepted: {result:?}");
+    }
+
+    // ERR-02: --status alias funciona
+    #[test]
+    fn test_status_alias_for_state() {
+        let cli = Cli::try_parse_from(["lql", "list", "--status", "Todo"]).unwrap();
+        if let Command::List(opts) = cli.command {
+            assert_eq!(opts.state.unwrap(), vec!["Todo"]);
+        } else {
+            panic!("Expected List command");
+        }
+    }
+
+    // --status en create también funciona
+    #[test]
+    fn test_status_alias_in_create() {
+        let cli = Cli::try_parse_from(["lql", "create", "test", "--status", "Done"]).unwrap();
+        if let Command::Create(opts) = cli.command {
+            assert_eq!(opts.state.unwrap(), "Done");
+        } else {
+            panic!("Expected Create command");
+        }
+    }
+
+    // --status en update
+    #[test]
+    fn test_status_alias_in_update() {
+        let cli = Cli::try_parse_from(["lql", "update", "PROD-1", "--status", "Done"]).unwrap();
+        if let Command::Update(opts) = cli.command {
+            assert_eq!(opts.state.unwrap(), "Done");
+        } else {
+            panic!("Expected Update command");
+        }
+    }
+
+    // Multiple states con coma
+    #[test]
+    fn test_multiple_states_comma() {
+        let cli = Cli::try_parse_from(["lql", "list", "--state", "backlog,unstarted"]).unwrap();
+        if let Command::List(opts) = cli.command {
+            assert_eq!(opts.state.unwrap(), vec!["backlog", "unstarted"]);
+        } else {
+            panic!("Expected List command");
+        }
+    }
+
+    // Priority case-insensitive
+    #[test]
+    fn test_normalize_priority_case_insensitive() {
+        assert_eq!(normalize_priority("Urgent", &priority_aliases()), Ok(1));
+        assert_eq!(normalize_priority("HIGH", &priority_aliases()), Ok(2));
+        assert_eq!(normalize_priority("MEDIUM", &priority_aliases()), Ok(3));
+    }
+
+    // ERR-13 variantes
+    #[test]
+    fn test_normalize_sort_variants() {
+        assert_eq!(normalize_sort("Updated"), "updatedAt");
+        assert_eq!(normalize_sort("UPDATED"), "updatedAt");
+        assert_eq!(normalize_sort("updatedAt"), "updatedAt");
+        assert_eq!(normalize_sort("created"), "createdAt");
+        assert_eq!(normalize_sort("createdAt"), "createdAt");
+    }
+}
+
+#[cfg(test)]
+mod proptest_tests {
+    use super::*;
+    use proptest::prelude::*;
+    use std::collections::HashMap;
+
+    fn state_aliases() -> HashMap<String, String> {
+        HashMap::from([
+            ("Todo".to_string(), "unstarted".to_string()),
+            ("In Progress".to_string(), "started".to_string()),
+            ("Done".to_string(), "completed".to_string()),
+            ("Canceled".to_string(), "canceled".to_string()),
+            ("Cancelled".to_string(), "canceled".to_string()),
+        ])
+    }
+
+    fn priority_aliases() -> HashMap<String, u8> {
+        HashMap::from([
+            ("urgent".to_string(), 1),
+            ("high".to_string(), 2),
+            ("medium".to_string(), 3),
+            ("low".to_string(), 4),
+            ("none".to_string(), 0),
+        ])
+    }
+
+    // Cualquier casing de "Todo" normaliza a "unstarted"
+    proptest! {
+        #[test]
+        fn prop_todo_any_case_normalizes(
+            s in prop::string::string_regex("[tT][oO][dD][oO]").unwrap()
+        ) {
+            let result = normalize_state(&s, &state_aliases());
+            prop_assert_eq!(result, "unstarted");
+        }
+
+        #[test]
+        fn prop_done_any_case_normalizes(
+            s in prop::string::string_regex("[dD][oO][nN][eE]").unwrap()
+        ) {
+            let result = normalize_state(&s, &state_aliases());
+            prop_assert_eq!(result, "completed");
+        }
+
+        // Cualquier casing de priority names normaliza al número correcto
+        #[test]
+        fn prop_urgent_any_case(
+            s in prop::string::string_regex("[uU][rR][gG][eE][nN][tT]").unwrap()
+        ) {
+            let result = normalize_priority(&s, &priority_aliases());
+            prop_assert_eq!(result, Ok(1));
+        }
+
+        #[test]
+        fn prop_high_any_case(
+            s in prop::string::string_regex("[hH][iI][gG][hH]").unwrap()
+        ) {
+            let result = normalize_priority(&s, &priority_aliases());
+            prop_assert_eq!(result, Ok(2));
+        }
+
+        // Valores API válidos pasan sin cambio
+        #[test]
+        fn prop_api_states_passthrough(
+            s in prop::sample::select(vec![
+                "backlog".to_string(),
+                "unstarted".to_string(),
+                "started".to_string(),
+                "completed".to_string(),
+                "canceled".to_string(),
+            ])
+        ) {
+            let result = normalize_state(&s, &state_aliases());
+            prop_assert_eq!(result, s);
+        }
+
+        // Priority números 0-4 son válidos
+        #[test]
+        fn prop_priority_valid_numbers(n in 0u8..=4) {
+            let result = normalize_priority(&n.to_string(), &priority_aliases());
+            prop_assert_eq!(result, Ok(n));
+        }
+
+        // Priority números >4 son inválidos
+        #[test]
+        fn prop_priority_invalid_numbers(n in 5u8..=255) {
+            let result = normalize_priority(&n.to_string(), &priority_aliases());
+            prop_assert!(result.is_err());
+        }
+
+        // Sort normaliza "updated" en cualquier casing a "updatedAt"
+        #[test]
+        fn prop_sort_updated_any_case(
+            s in prop::string::string_regex("[uU][pP][dD][aA][tT][eE][dD]").unwrap()
+        ) {
+            let result = normalize_sort(&s);
+            prop_assert_eq!(result, "updatedAt");
+        }
     }
 }
