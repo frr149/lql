@@ -3,6 +3,8 @@ name = "lql"
 version = "0.1.0"
 edition = "2024"
 description = "Linear Query Language — CLI for Linear optimized for LLM consumption"
+license = "MIT"
+repository = "https://github.com/frr149/lql"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
