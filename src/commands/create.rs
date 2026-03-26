@@ -1,5 +1,5 @@
 use crate::cli::{self, CreateOpts};
-use crate::client::{Client, LinearMeta};
+use crate::client::{Client, GraphQLClient, LinearMeta};
 use crate::config::Config;
 use crate::format;
 use std::io::{IsTerminal, Read};
@@ -126,7 +126,7 @@ fn atty_stdin() -> bool {
     std::io::stdin().is_terminal()
 }
 
-fn check_duplicates(client: &Client, title: &str) -> Result<(), String> {
+fn check_duplicates(client: &dyn GraphQLClient, title: &str) -> Result<(), String> {
     let variables = serde_json::json!({
         "term": title,
         "first": 5,
@@ -235,6 +235,7 @@ fn parse_due_date(input: &str) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::client::GraphQLClient;
 
     #[test]
     fn test_parse_due_date_iso() {
@@ -387,5 +388,73 @@ mod tests {
             parsed["variables"]["input"]["description"].as_str().unwrap(),
             desc
         );
+    }
+
+    // --- ERR-72/73: Duplicate detection con mock ---
+
+    struct MockClient {
+        response: Result<serde_json::Value, String>,
+    }
+
+    impl GraphQLClient for MockClient {
+        fn query(
+            &self,
+            _query: &str,
+            _variables: serde_json::Value,
+        ) -> Result<serde_json::Value, String> {
+            self.response.clone()
+        }
+    }
+
+    // ERR-72: duplicados encontrados genera warning (no error)
+    #[test]
+    fn test_check_duplicates_found() {
+        let client = MockClient {
+            response: Ok(serde_json::json!({
+                "searchIssues": {"nodes": [{
+                    "identifier": "PROD-100",
+                    "title": "OAuth token refresh",
+                    "state": {"type": "unstarted"}
+                }]}
+            })),
+        };
+        // check_duplicates siempre devuelve Ok — solo emite warning a stderr
+        let result = check_duplicates(&client, "OAuth token refresh");
+        assert!(result.is_ok());
+    }
+
+    // ERR-72b: duplicados completados no generan warning
+    #[test]
+    fn test_check_duplicates_completed_ignored() {
+        let client = MockClient {
+            response: Ok(serde_json::json!({
+                "searchIssues": {"nodes": [{
+                    "identifier": "PROD-100",
+                    "title": "OAuth token refresh",
+                    "state": {"type": "completed"}
+                }]}
+            })),
+        };
+        assert!(check_duplicates(&client, "OAuth token refresh").is_ok());
+    }
+
+    // ERR-73: si la búsqueda falla, no bloquea la creación
+    #[test]
+    fn test_check_duplicates_search_error_does_not_block() {
+        let client = MockClient {
+            response: Err("Connection error".to_string()),
+        };
+        assert!(check_duplicates(&client, "Some title").is_ok());
+    }
+
+    // Sin duplicados
+    #[test]
+    fn test_check_duplicates_none_found() {
+        let client = MockClient {
+            response: Ok(serde_json::json!({
+                "searchIssues": {"nodes": []}
+            })),
+        };
+        assert!(check_duplicates(&client, "Unique title").is_ok());
     }
 }

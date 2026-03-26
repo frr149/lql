@@ -1,4 +1,4 @@
-use crate::client::{Client, LinearMeta};
+use crate::client::{Client, GraphQLClient, LinearMeta};
 use crate::config::Config;
 
 pub fn run(config: &Config) -> Result<(), String> {

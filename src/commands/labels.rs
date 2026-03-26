@@ -1,5 +1,5 @@
 use crate::cli::LabelsOpts;
-use crate::client::{Client, LinearMeta};
+use crate::client::{Client, GraphQLClient, LinearMeta};
 use crate::config::Config;
 
 pub fn run(config: &Config, opts: &LabelsOpts) -> Result<(), String> {

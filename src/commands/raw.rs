@@ -1,5 +1,5 @@
 use crate::cli::RawOpts;
-use crate::client::Client;
+use crate::client::{Client, GraphQLClient};
 use crate::config::Config;
 
 pub fn run(config: &Config, opts: &RawOpts) -> Result<(), String> {
