@@ -4,6 +4,11 @@ use crate::config::Config;
 use crate::format;
 
 pub fn run(config: &Config, opts: &ListOpts) -> Result<(), String> {
+    // Mutual exclusion: --no-label y --label
+    if opts.no_label && opts.label.is_some() {
+        return Err("--no-label and --label are mutually exclusive".to_string());
+    }
+
     let cwd = std::env::current_dir().map_err(|e| format!("Could not get cwd: {e}"))?;
     let client = Client::new(&config.auth.api_key_ref)?;
     let meta = LinearMeta::fetch(&client)?;
@@ -22,24 +27,29 @@ pub fn run(config: &Config, opts: &ListOpts) -> Result<(), String> {
         filter["team"] = serde_json::json!({"key": {"eq": team_key}});
 
         // Resolver labels: explicit > context-map
-        let label_names = opts.label.as_ref().map(|l| l.as_slice()).or_else(|| {
-            ctx_label.as_ref().map(|l| std::slice::from_ref(l))
+        let label_names = opts.label.as_deref().or_else(|| {
+            ctx_label.as_ref().map(std::slice::from_ref)
         });
-        if let Some(names) = label_names {
-            if opts.label.is_some() {
-                // Solo validar labels explícitos
-                let mut label_ids = Vec::new();
-                for name in names {
-                    let label = meta.find_label(name)?;
-                    label_ids.push(serde_json::json!({"id": {"eq": label.id}}));
-                }
-                if label_ids.len() == 1 {
-                    filter["labels"] = serde_json::json!({"some": label_ids[0]});
-                } else {
-                    filter["labels"] = serde_json::json!({"some": {"or": label_ids}});
-                }
+        if let Some(names) = label_names
+            && opts.label.is_some()
+        {
+            // Solo validar labels explícitos
+            let mut label_ids = Vec::new();
+            for name in names {
+                let label = meta.find_label(name)?;
+                label_ids.push(serde_json::json!({"id": {"eq": label.id}}));
+            }
+            if label_ids.len() == 1 {
+                filter["labels"] = serde_json::json!({"some": label_ids[0]});
+            } else {
+                filter["labels"] = serde_json::json!({"some": {"or": label_ids}});
             }
             // No filtrar por label del context-map en list (mostraría solo ese label)
+        }
+
+        // No-label filter: solo issues sin labels
+        if opts.no_label {
+            filter["labels"] = serde_json::json!({"length": {"eq": 0}});
         }
 
         // Resolver project
@@ -83,6 +93,11 @@ pub fn run(config: &Config, opts: &ListOpts) -> Result<(), String> {
             } else {
                 filter["labels"] = serde_json::json!({"some": {"or": label_ids}});
             }
+        }
+
+        // No-label filter: solo issues sin labels
+        if opts.no_label {
+            filter["labels"] = serde_json::json!({"length": {"eq": 0}});
         }
     }
 

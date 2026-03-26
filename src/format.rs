@@ -110,12 +110,12 @@ pub fn format_footer(issues: &[Value], total: Option<u64>, limit: u32) -> String
         format!(" ({})", parts.join(", "))
     };
 
-    if let Some(total) = total {
-        if total > count as u64 {
-            return format!(
-                "\u{2500}\u{2500} showing {count} of {total} issues{breakdown} (use --all or --limit N for more)"
-            );
-        }
+    if let Some(total) = total
+        && total > count as u64
+    {
+        return format!(
+            "\u{2500}\u{2500} showing {count} of {total} issues{breakdown} (use --all or --limit N for more)"
+        );
     }
 
     // Si el count == limit, puede haber más
@@ -226,14 +226,14 @@ pub fn format_view(issue: &Value) -> String {
     lines.push(format!("  {}", meta_parts.join(" | ")));
 
     // Descripción
-    if let Some(desc) = issue.get("description").and_then(|d| d.as_str()) {
-        if !desc.is_empty() {
-            lines.push("  \u{2500}\u{2500}\u{2500}\u{2500}\u{2500}".to_string());
-            for line in desc.lines() {
-                lines.push(format!("  {line}"));
-            }
-            lines.push("  \u{2500}\u{2500}\u{2500}\u{2500}\u{2500}".to_string());
+    if let Some(desc) = issue.get("description").and_then(|d| d.as_str())
+        && !desc.is_empty()
+    {
+        lines.push("  \u{2500}\u{2500}\u{2500}\u{2500}\u{2500}".to_string());
+        for line in desc.lines() {
+            lines.push(format!("  {line}"));
         }
+        lines.push("  \u{2500}\u{2500}\u{2500}\u{2500}\u{2500}".to_string());
     }
 
     // Relaciones
@@ -241,22 +241,22 @@ pub fn format_view(issue: &Value) -> String {
         .get("relations")
         .and_then(|r| r.get("nodes"))
         .and_then(|n| n.as_array());
-    if let Some(rels) = relations {
-        if !rels.is_empty() {
-            let rel_strs: Vec<String> = rels
-                .iter()
-                .filter_map(|r| {
-                    let rel_type = r.get("type")?.as_str()?;
-                    let related_id = r
-                        .get("relatedIssue")
-                        .and_then(|i| i.get("identifier"))
-                        .and_then(|i| i.as_str())
-                        .unwrap_or("?");
-                    Some(format!("{rel_type} {related_id}"))
-                })
-                .collect();
-            lines.push(format!("  Relations: {}", rel_strs.join(", ")));
-        }
+    if let Some(rels) = relations
+        && !rels.is_empty()
+    {
+        let rel_strs: Vec<String> = rels
+            .iter()
+            .filter_map(|r| {
+                let rel_type = r.get("type")?.as_str()?;
+                let related_id = r
+                    .get("relatedIssue")
+                    .and_then(|i| i.get("identifier"))
+                    .and_then(|i| i.as_str())
+                    .unwrap_or("?");
+                Some(format!("{rel_type} {related_id}"))
+            })
+            .collect();
+        lines.push(format!("  Relations: {}", rel_strs.join(", ")));
     }
 
     // Comments count

@@ -132,33 +132,32 @@ fn check_duplicates(client: &dyn GraphQLClient, title: &str) -> Result<(), Strin
         "first": 5,
     });
 
-    if let Ok(data) = client.query(crate::queries::SEARCH_QUERY, variables) {
-        if let Some(nodes) = data
+    if let Ok(data) = client.query(crate::queries::SEARCH_QUERY, variables)
+        && let Some(nodes) = data
             .get("searchIssues")
             .and_then(|s| s.get("nodes"))
             .and_then(|n| n.as_array())
-        {
-            let similar: Vec<String> = nodes
-                .iter()
-                .filter_map(|n| {
-                    let id = n.get("identifier")?.as_str()?;
-                    let t = n.get("title")?.as_str()?;
-                    let state_type = n.get("state").and_then(|s| s.get("type")).and_then(|t| t.as_str()).unwrap_or("");
-                    // Solo advertir de issues activas
-                    if state_type == "completed" || state_type == "canceled" {
-                        return None;
-                    }
-                    Some(format!("  {id} \"{t}\""))
-                })
-                .collect();
-
-            if !similar.is_empty() {
-                eprintln!("⚠ Similar issues found:");
-                for s in &similar {
-                    eprintln!("{s}");
+    {
+        let similar: Vec<String> = nodes
+            .iter()
+            .filter_map(|n| {
+                let id = n.get("identifier")?.as_str()?;
+                let t = n.get("title")?.as_str()?;
+                let state_type = n.get("state").and_then(|s| s.get("type")).and_then(|t| t.as_str()).unwrap_or("");
+                // Solo advertir de issues activas
+                if state_type == "completed" || state_type == "canceled" {
+                    return None;
                 }
-                eprintln!("Creating anyway. Use --force to skip this check.");
+                Some(format!("  {id} \"{t}\""))
+            })
+            .collect();
+
+        if !similar.is_empty() {
+            eprintln!("⚠ Similar issues found:");
+            for s in &similar {
+                eprintln!("{s}");
             }
+            eprintln!("Creating anyway. Use --force to skip this check.");
         }
     }
     // Si la búsqueda falla, no bloquear la creación
@@ -183,18 +182,18 @@ fn parse_due_date(input: &str) -> Result<String, String> {
 
     // +Nd (relative days)
     if let Some(rest) = input.strip_prefix('+') {
-        if let Some(days_str) = rest.strip_suffix('d') {
-            if let Ok(days) = days_str.parse::<i64>() {
-                let date = today + chrono::Duration::days(days);
-                return Ok(date.format("%Y-%m-%d").to_string());
-            }
+        if let Some(days_str) = rest.strip_suffix('d')
+            && let Ok(days) = days_str.parse::<i64>()
+        {
+            let date = today + chrono::Duration::days(days);
+            return Ok(date.format("%Y-%m-%d").to_string());
         }
         // +Nw (weeks)
-        if let Some(weeks_str) = rest.strip_suffix('w') {
-            if let Ok(weeks) = weeks_str.parse::<i64>() {
-                let date = today + chrono::Duration::weeks(weeks);
-                return Ok(date.format("%Y-%m-%d").to_string());
-            }
+        if let Some(weeks_str) = rest.strip_suffix('w')
+            && let Ok(weeks) = weeks_str.parse::<i64>()
+        {
+            let date = today + chrono::Duration::weeks(weeks);
+            return Ok(date.format("%Y-%m-%d").to_string());
         }
     }
 

@@ -47,6 +47,10 @@ pub struct ListOpts {
     #[arg(long)]
     pub label: Option<Vec<String>>,
 
+    /// Only issues with no labels
+    #[arg(long)]
+    pub no_label: bool,
+
     /// Filter by project (case-insensitive)
     #[arg(long)]
     pub project: Option<String>,
@@ -504,6 +508,32 @@ mod tests {
         let cli = Cli::try_parse_from(["lql", "list", "--state", "backlog,unstarted"]).unwrap();
         if let Command::List(opts) = cli.command {
             assert_eq!(opts.state.unwrap(), vec!["backlog", "unstarted"]);
+        } else {
+            panic!("Expected List command");
+        }
+    }
+
+    // --- --no-label flag ---
+
+    #[test]
+    fn test_no_label_accepted() {
+        let result = Cli::try_parse_from(["lql", "list", "--no-label"]);
+        assert!(result.is_ok(), "--no-label should be accepted: {result:?}");
+        if let Command::List(opts) = result.unwrap().command {
+            assert!(opts.no_label);
+        } else {
+            panic!("Expected List command");
+        }
+    }
+
+    #[test]
+    fn test_no_label_with_label_both_accepted_by_clap() {
+        // clap acepta ambos flags; la exclusión mutua se valida en run()
+        let result = Cli::try_parse_from(["lql", "list", "--no-label", "--label", "bug"]);
+        assert!(result.is_ok(), "clap should accept both flags: {result:?}");
+        if let Command::List(opts) = result.unwrap().command {
+            assert!(opts.no_label);
+            assert!(opts.label.is_some());
         } else {
             panic!("Expected List command");
         }
