@@ -25,6 +25,7 @@ pub struct AuthConfig {
 #[derive(Debug, Deserialize)]
 pub struct Defaults {
     #[serde(default = "default_sort")]
+    #[allow(dead_code)]
     pub sort: String,
     #[serde(default = "default_states")]
     pub states: Vec<String>,
