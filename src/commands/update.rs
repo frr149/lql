@@ -173,7 +173,7 @@ pub fn find_issue_by_identifier(
 }
 
 /// Parsea un identifier (PROD-587) en (team_key, number)
-fn parse_identifier(identifier: &str) -> Result<(String, u32), String> {
+pub fn parse_identifier(identifier: &str) -> Result<(String, u32), String> {
     let parts: Vec<&str> = identifier.splitn(2, '-').collect();
     if parts.len() != 2 {
         return Err(format!(
@@ -185,4 +185,47 @@ fn parse_identifier(identifier: &str) -> Result<(String, u32), String> {
         .parse()
         .map_err(|_| format!("Invalid issue number in \"{identifier}\""))?;
     Ok((team_key, number))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- Identifier parsing ---
+
+    #[test]
+    fn test_parse_identifier_valid() {
+        let (team, num) = parse_identifier("PROD-587").unwrap();
+        assert_eq!(team, "PROD");
+        assert_eq!(num, 587);
+    }
+
+    #[test]
+    fn test_parse_identifier_lowercase() {
+        let (team, num) = parse_identifier("prod-587").unwrap();
+        assert_eq!(team, "PROD"); // normaliza a uppercase
+        assert_eq!(num, 587);
+    }
+
+    #[test]
+    fn test_parse_identifier_invalid_no_dash() {
+        assert!(parse_identifier("PROD587").is_err());
+    }
+
+    #[test]
+    fn test_parse_identifier_invalid_no_number() {
+        assert!(parse_identifier("PROD-abc").is_err());
+    }
+
+    #[test]
+    fn test_parse_identifier_invalid_empty() {
+        assert!(parse_identifier("").is_err());
+    }
+
+    #[test]
+    fn test_parse_identifier_tool_team() {
+        let (team, num) = parse_identifier("TOOL-33").unwrap();
+        assert_eq!(team, "TOOL");
+        assert_eq!(num, 33);
+    }
 }

@@ -262,4 +262,130 @@ mod tests {
     fn test_parse_due_date_invalid() {
         assert!(parse_due_date("not-a-date").is_err());
     }
+
+    #[test]
+    fn test_parse_due_date_tomorrow() {
+        let result = parse_due_date("tomorrow").unwrap();
+        let date = chrono::NaiveDate::parse_from_str(&result, "%Y-%m-%d").unwrap();
+        let tomorrow = chrono::Utc::now().date_naive() + chrono::Duration::days(1);
+        assert_eq!(date, tomorrow);
+    }
+
+    #[test]
+    fn test_parse_due_date_weeks() {
+        let result = parse_due_date("+2w").unwrap();
+        let date = chrono::NaiveDate::parse_from_str(&result, "%Y-%m-%d").unwrap();
+        let expected = chrono::Utc::now().date_naive() + chrono::Duration::weeks(2);
+        assert_eq!(date, expected);
+    }
+
+    // --- ERR-39..45: Escapado seguro con serde ---
+
+    // ERR-39: descripción con comillas dobles
+    #[test]
+    fn test_escape_double_quotes() {
+        let desc = r#"El campo "title" no se escapa"#;
+        let json = serde_json::json!({"description": desc});
+        let serialized = serde_json::to_string(&json).unwrap();
+        // serde escapa las comillas correctamente
+        assert!(serialized.contains(r#"\"title\""#));
+        // Y se deserializa al valor original
+        let parsed: serde_json::Value = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(parsed["description"].as_str().unwrap(), desc);
+    }
+
+    // ERR-40: descripción con backticks
+    #[test]
+    fn test_escape_backticks() {
+        let desc = "Usar `json.dumps()` para escapar";
+        let json = serde_json::json!({"description": desc});
+        let serialized = serde_json::to_string(&json).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(parsed["description"].as_str().unwrap(), desc);
+    }
+
+    // ERR-41: descripción con newlines
+    #[test]
+    fn test_escape_newlines() {
+        let desc = "## Problema\n\nEl token expira.\n\n## Fix\n\nDetectar expiración.";
+        let json = serde_json::json!({"description": desc});
+        let serialized = serde_json::to_string(&json).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(parsed["description"].as_str().unwrap(), desc);
+    }
+
+    // ERR-42: descripción con $variables (no expandidas)
+    #[test]
+    fn test_escape_dollar_variables() {
+        let desc = "Set $PATH to include ~/.local/bin";
+        let json = serde_json::json!({"description": desc});
+        let serialized = serde_json::to_string(&json).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(parsed["description"].as_str().unwrap(), desc);
+    }
+
+    // ERR-43: descripción con backslashes
+    #[test]
+    fn test_escape_backslashes() {
+        let desc = r"Regex: \d+\.\d+";
+        let json = serde_json::json!({"description": desc});
+        let serialized = serde_json::to_string(&json).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(parsed["description"].as_str().unwrap(), desc);
+    }
+
+    // ERR-44: descripción con emojis y unicode
+    #[test]
+    fn test_escape_unicode_emoji() {
+        let desc = "⚠️ Error en producción — 日本語テスト";
+        let json = serde_json::json!({"description": desc});
+        let serialized = serde_json::to_string(&json).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(parsed["description"].as_str().unwrap(), desc);
+    }
+
+    // ERR-45: heredoc con comillas, backticks y $variables mezclados
+    #[test]
+    fn test_escape_mixed_special_chars() {
+        let desc = "## Problema\nEl campo \"title\" tiene `backticks` y $variables.\nPath: C:\\Users\\foo";
+        let json = serde_json::json!({"description": desc});
+        let serialized = serde_json::to_string(&json).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(parsed["description"].as_str().unwrap(), desc);
+    }
+
+    // Verificar que la query GraphQL completa con variables es JSON válido
+    #[test]
+    fn test_full_graphql_body_valid_json() {
+        let title = r#"Fix "auth" token's $refresh — ¡urgente!"#;
+        let desc = "## Steps\n1. Check `expiresAt`\n2. Set $PATH\n3. Regex: \\d+\n\n> Quote with \"double quotes\"";
+
+        let variables = serde_json::json!({
+            "input": {
+                "title": title,
+                "description": desc,
+                "teamId": "some-uuid",
+                "priority": 1,
+            }
+        });
+
+        let body = serde_json::json!({
+            "query": "mutation($input: IssueCreateInput!) { issueCreate(input: $input) { success } }",
+            "variables": variables,
+        });
+
+        // El body completo debe ser JSON válido
+        let serialized = serde_json::to_string(&body).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&serialized).unwrap();
+
+        // Los valores deben sobrevivir el round-trip
+        assert_eq!(
+            parsed["variables"]["input"]["title"].as_str().unwrap(),
+            title
+        );
+        assert_eq!(
+            parsed["variables"]["input"]["description"].as_str().unwrap(),
+            desc
+        );
+    }
 }
