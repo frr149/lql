@@ -255,6 +255,27 @@ QIN = "Use: --team PROD --label qinqin"
         assert!(result.is_err());
     }
 
+    // ERR-01: default sort es priority
+    #[test]
+    fn test_defaults_sort_priority() {
+        let defaults = Defaults::default();
+        assert_eq!(defaults.sort, "priority");
+    }
+
+    // ERR-01b: default states son backlog, unstarted, started
+    #[test]
+    fn test_defaults_states() {
+        let defaults = Defaults::default();
+        assert_eq!(defaults.states, vec!["backlog", "unstarted", "started"]);
+    }
+
+    // ERR-01c: default limit es 50
+    #[test]
+    fn test_defaults_limit() {
+        let defaults = Defaults::default();
+        assert_eq!(defaults.limit, 50);
+    }
+
     // Subdirectorio también matchea
     #[test]
     fn test_resolve_context_subdirectory() {

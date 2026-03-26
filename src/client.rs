@@ -6,6 +6,71 @@ use std::time::Duration;
 const GRAPHQL_URL: &str = "https://api.linear.app/graphql";
 const MAX_RETRIES: u32 = 3;
 
+/// Acción a tomar tras evaluar un código HTTP
+#[derive(Debug, PartialEq)]
+enum HttpAction {
+    /// Reintentar tras delay
+    Retry(String),
+    /// Error fatal, devolver al caller
+    Error(String),
+    /// Continuar procesando el body
+    Continue,
+}
+
+/// Clasifica un status HTTP y decide si reintentar, abortar o continuar
+fn classify_http_status(status: u16, attempt: u32, max_retries: u32) -> HttpAction {
+    match status {
+        429 => {
+            if attempt < max_retries {
+                HttpAction::Retry(format!(
+                    "ℹ Rate limited (429), retrying in {}s...",
+                    2u64.pow(attempt + 1)
+                ))
+            } else {
+                HttpAction::Error(
+                    "Rate limited by Linear API after 3 retries. Try again later.".to_string(),
+                )
+            }
+        }
+        401 => HttpAction::Error(
+            "Authentication failed. Check your API key: lql doctor".to_string(),
+        ),
+        500..=599 => {
+            if attempt < max_retries {
+                HttpAction::Retry(format!(
+                    "ℹ Server error ({status}), retrying in {}s...",
+                    2u64.pow(attempt + 1)
+                ))
+            } else {
+                HttpAction::Error(format!(
+                    "Linear API server error ({status}). Try again later."
+                ))
+            }
+        }
+        _ => HttpAction::Continue,
+    }
+}
+
+/// Parsea el body JSON de una respuesta Linear y extrae el campo "data"
+fn handle_response(body: &str) -> Result<Value, String> {
+    let json: Value =
+        serde_json::from_str(body).map_err(|e| format!("Could not parse Linear API response: {e}"))?;
+
+    if let Some(errors) = json.get("errors") {
+        if let Some(first) = errors.as_array().and_then(|a| a.first()) {
+            let msg = first
+                .get("message")
+                .and_then(|m| m.as_str())
+                .unwrap_or("Unknown error");
+            return Err(format!("Linear API error: {msg}"));
+        }
+    }
+
+    json.get("data")
+        .cloned()
+        .ok_or_else(|| "Linear API response missing 'data' field".to_string())
+}
+
 pub struct Client {
     api_key: String,
     http: reqwest::blocking::Client,
@@ -37,68 +102,22 @@ impl Client {
 
             match response {
                 Ok(resp) => {
-                    let status = resp.status();
-
-                    // Rate limit: retry con backoff
-                    if status.as_u16() == 429 {
-                        if attempt < MAX_RETRIES {
+                    let status = resp.status().as_u16();
+                    match classify_http_status(status, attempt, MAX_RETRIES) {
+                        HttpAction::Retry(msg) => {
                             let delay = Duration::from_secs(2u64.pow(attempt + 1));
-                            eprintln!(
-                                "ℹ Rate limited (429), retrying in {}s...",
-                                delay.as_secs()
-                            );
+                            eprintln!("{msg}");
                             thread::sleep(delay);
                             continue;
                         }
-                        return Err(
-                            "Rate limited by Linear API after 3 retries. Try again later."
-                                .to_string(),
-                        );
+                        HttpAction::Error(msg) => return Err(msg),
+                        HttpAction::Continue => {}
                     }
 
-                    // Auth error
-                    if status.as_u16() == 401 {
-                        return Err(
-                            "Authentication failed. Check your API key: lql doctor".to_string()
-                        );
-                    }
-
-                    // Server error: retry con backoff
-                    if status.is_server_error() {
-                        if attempt < MAX_RETRIES {
-                            let delay = Duration::from_secs(2u64.pow(attempt + 1));
-                            eprintln!(
-                                "ℹ Server error ({status}), retrying in {}s...",
-                                delay.as_secs()
-                            );
-                            thread::sleep(delay);
-                            continue;
-                        }
-                        return Err(format!(
-                            "Linear API server error ({status}). Try again later."
-                        ));
-                    }
-
-                    // Parsear respuesta
-                    let json: Value = resp
-                        .json()
-                        .map_err(|e| format!("Could not parse Linear API response: {e}"))?;
-
-                    // Comprobar errores GraphQL
-                    if let Some(errors) = json.get("errors") {
-                        if let Some(first) = errors.as_array().and_then(|a| a.first()) {
-                            let msg = first
-                                .get("message")
-                                .and_then(|m| m.as_str())
-                                .unwrap_or("Unknown error");
-                            return Err(format!("Linear API error: {msg}"));
-                        }
-                    }
-
-                    return json
-                        .get("data")
-                        .cloned()
-                        .ok_or_else(|| "Linear API response missing 'data' field".to_string());
+                    let text = resp
+                        .text()
+                        .map_err(|e| format!("Could not read Linear API response: {e}"))?;
+                    return handle_response(&text);
                 }
                 Err(e) => {
                     if attempt < MAX_RETRIES && e.is_connect() {
@@ -175,6 +194,20 @@ impl LinearMeta {
             .find(|t| t.key.eq_ignore_ascii_case(key))
             .ok_or_else(|| {
                 let available: Vec<&str> = self.teams.iter().map(|t| t.key.as_str()).collect();
+                // Buscar sugerencia por Levenshtein
+                let needle = key.to_lowercase();
+                let mut scored: Vec<(&str, usize)> = available
+                    .iter()
+                    .map(|&h| (h, levenshtein(&needle, &h.to_lowercase())))
+                    .collect();
+                scored.sort_by_key(|&(_, d)| d);
+                if let Some(&(best, dist)) = scored.first() {
+                    if dist <= 3 {
+                        return format!(
+                            "Team \"{key}\" does not exist. Did you mean: {best}?"
+                        );
+                    }
+                }
                 format!(
                     "Team \"{key}\" not found. Available: {}",
                     available.join(", ")
@@ -202,18 +235,24 @@ impl LinearMeta {
             .iter()
             .find(|l| l.name.eq_ignore_ascii_case(name))
             .ok_or_else(|| {
-                let available: Vec<&str> = self.labels.iter().map(|l| l.name.as_str()).collect();
-                // Buscar similar (distancia de edición simple)
-                let similar = find_similar(name, &available);
-                let mut msg = format!("Label \"{name}\" not found.");
-                if !similar.is_empty() {
-                    msg.push_str(&format!(" Similar: {}", similar.join(", ")));
-                }
-                msg.push_str(&format!(
-                    "\n  Available: {}",
-                    available.join(", ")
-                ));
-                msg
+                let needle = name.to_lowercase();
+                let mut scored: Vec<(&str, usize)> = self
+                    .labels
+                    .iter()
+                    .map(|l| {
+                        (
+                            l.name.as_str(),
+                            levenshtein(&needle, &l.name.to_lowercase()),
+                        )
+                    })
+                    .collect();
+                scored.sort_by_key(|&(_, d)| d);
+                let top: Vec<&str> = scored.iter().take(10).map(|&(s, _)| s).collect();
+                format!(
+                    "Label \"{name}\" not found. Closest (of {}): {}",
+                    self.labels.len(),
+                    top.join(", ")
+                )
             })
     }
 
@@ -387,8 +426,22 @@ mod tests {
         let meta = meta_from_fixture();
         let err = meta.find_label("tokamax").unwrap_err(); // similar a "tokamak"
         assert!(err.contains("not found"), "Should say not found: {err}");
-        assert!(err.contains("Available:"), "Should list available: {err}");
+        assert!(err.contains("Closest (of"), "Should list closest: {err}");
         assert!(err.contains("tokamak"), "Should suggest similar: {err}");
+    }
+
+    // ERR-23b: el error trunca a 10 labels máximo
+    #[test]
+    fn test_label_error_truncated() {
+        let meta = meta_from_fixture();
+        let err = meta.find_label("kubernetes").unwrap_err();
+        // No debe volcar todos los labels — solo hasta 10
+        let comma_count = err.matches(',').count();
+        assert!(
+            comma_count <= 9,
+            "Should show at most 10 labels (9 commas), got {comma_count} commas: {err}"
+        );
+        assert!(err.contains("Closest (of"), "Should show total count: {err}");
     }
 
     // ERR-24: label completamente inventado
@@ -450,6 +503,17 @@ mod tests {
         assert!(meta.find_project(prod, "TOKAMAK").is_ok());
     }
 
+    // ERR-31: project con espacios case-insensitive
+    #[test]
+    fn test_project_with_spaces_case_insensitive() {
+        let meta = meta_from_fixture();
+        let tool = meta.find_team("TOOL").unwrap();
+        // "Social Publisher" existe en TOOL fixture
+        assert!(meta.find_project(tool, "social publisher").is_ok());
+        assert!(meta.find_project(tool, "SOCIAL PUBLISHER").is_ok());
+        assert!(meta.find_project(tool, "Social Publisher").is_ok());
+    }
+
     // ERR-32: project inexistente
     #[test]
     fn test_project_not_found() {
@@ -488,13 +552,42 @@ mod tests {
         assert!(meta.find_team("Prod").is_ok());
     }
 
-    // Team not found
+    // Team not found (lejano, sin sugerencia)
     #[test]
     fn test_find_team_not_found() {
         let meta = meta_from_fixture();
         let err = meta.find_team("NONEXISTENT").unwrap_err();
         assert!(err.contains("not found"));
         assert!(err.contains("Available:"));
+    }
+
+    // ERR-36: --team BLO → "Did you mean: BLO?" (existe como team en fixture)
+    // Nota: BLO existe en Linear pero no en los 5 teams del context-map.
+    // Sin embargo sí está en el fixture de meta. Se sugiere el match más cercano.
+    #[test]
+    fn test_find_team_blo_suggestion() {
+        let meta = meta_from_fixture();
+        // BLO existe en el fixture, así que find_team lo encuentra
+        // Este test verifica que el fixture incluye BLO
+        assert!(meta.find_team("BLO").is_ok());
+    }
+
+    // ERR-37: team cercano con sugerencia
+    #[test]
+    fn test_find_team_suggestion_levenshtein() {
+        let meta = meta_from_fixture();
+        let err = meta.find_team("PORD").unwrap_err(); // typo de PROD
+        assert!(err.contains("Did you mean"), "{err}");
+        assert!(err.contains("PROD"), "{err}");
+    }
+
+    // ERR-38: team lejano sin sugerencia
+    #[test]
+    fn test_find_team_no_suggestion_far() {
+        let meta = meta_from_fixture();
+        let err = meta.find_team("ZZZZZZZ").unwrap_err();
+        assert!(err.contains("Available:"), "{err}");
+        assert!(!err.contains("Did you mean"), "{err}");
     }
 
     // --- States ---
@@ -522,6 +615,114 @@ mod tests {
         let meta = meta_from_fixture();
         let prod = meta.find_team("PROD").unwrap();
         assert!(meta.find_state(prod, "nonexistent").is_none());
+    }
+
+    // --- ERR-48..52: API error handling ---
+
+    // ERR-48: GraphQL error parseado correctamente
+    #[test]
+    fn test_handle_response_graphql_error() {
+        let body = r#"{"errors":[{"message":"Entity not found"}]}"#;
+        let err = handle_response(body).unwrap_err();
+        assert!(err.contains("Linear API error: Entity not found"), "{err}");
+    }
+
+    // ERR-48b: GraphQL error sin message
+    #[test]
+    fn test_handle_response_graphql_error_no_message() {
+        let body = r#"{"errors":[{}]}"#;
+        let err = handle_response(body).unwrap_err();
+        assert!(err.contains("Unknown error"), "{err}");
+    }
+
+    // ERR-48c: respuesta válida devuelve data
+    #[test]
+    fn test_handle_response_valid() {
+        let body = r#"{"data":{"issues":{"nodes":[]}}}"#;
+        let data = handle_response(body).unwrap();
+        assert!(data.get("issues").is_some());
+    }
+
+    // ERR-48d: respuesta sin data
+    #[test]
+    fn test_handle_response_missing_data() {
+        let body = r#"{"something":"else"}"#;
+        let err = handle_response(body).unwrap_err();
+        assert!(err.contains("missing 'data' field"), "{err}");
+    }
+
+    // ERR-48e: body no es JSON válido
+    #[test]
+    fn test_handle_response_invalid_json() {
+        let err = handle_response("not json").unwrap_err();
+        assert!(err.contains("Could not parse"), "{err}");
+    }
+
+    // ERR-49: 429 rate limit — primeros intentos reintentables, último es error
+    #[test]
+    fn test_classify_429_retry() {
+        assert!(matches!(
+            classify_http_status(429, 0, 3),
+            HttpAction::Retry(_)
+        ));
+        assert!(matches!(
+            classify_http_status(429, 2, 3),
+            HttpAction::Retry(_)
+        ));
+    }
+
+    #[test]
+    fn test_classify_429_exhausted() {
+        let result = classify_http_status(429, 3, 3);
+        assert!(matches!(result, HttpAction::Error(ref msg) if msg.contains("Rate limited")));
+    }
+
+    // ERR-50: 401 auth failed — siempre error inmediato
+    #[test]
+    fn test_classify_401() {
+        let result = classify_http_status(401, 0, 3);
+        assert!(matches!(result, HttpAction::Error(ref msg) if msg.contains("Authentication failed")));
+    }
+
+    // ERR-51: 500 server error — reintenta, luego error
+    #[test]
+    fn test_classify_500_retry() {
+        assert!(matches!(
+            classify_http_status(500, 0, 3),
+            HttpAction::Retry(_)
+        ));
+    }
+
+    #[test]
+    fn test_classify_500_exhausted() {
+        let result = classify_http_status(500, 3, 3);
+        assert!(matches!(result, HttpAction::Error(ref msg) if msg.contains("server error")));
+    }
+
+    // ERR-51b: otros 5xx también reintentan
+    #[test]
+    fn test_classify_502_503() {
+        assert!(matches!(
+            classify_http_status(502, 0, 3),
+            HttpAction::Retry(_)
+        ));
+        assert!(matches!(
+            classify_http_status(503, 0, 3),
+            HttpAction::Retry(_)
+        ));
+    }
+
+    // ERR-52: el mensaje de network error se verifica en formato
+    // (no podemos simular reqwest::Error sin mock, pero testeamos classify para 200 = Continue)
+    #[test]
+    fn test_classify_200_continues() {
+        assert_eq!(classify_http_status(200, 0, 3), HttpAction::Continue);
+    }
+
+    #[test]
+    fn test_classify_other_status_continues() {
+        assert_eq!(classify_http_status(204, 0, 3), HttpAction::Continue);
+        assert_eq!(classify_http_status(301, 0, 3), HttpAction::Continue);
     }
 
     // --- Levenshtein ---

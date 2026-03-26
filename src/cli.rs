@@ -511,6 +511,104 @@ mod tests {
         }
     }
 
+    // --- ERR-61..64: search CLI parsing ---
+
+    // ERR-61: search acepta query posicional
+    #[test]
+    fn test_search_parsing() {
+        let cli = Cli::try_parse_from(["lql", "search", "basedpyright"]).unwrap();
+        if let Command::Search(opts) = cli.command {
+            assert_eq!(opts.query, "basedpyright");
+        } else {
+            panic!("Expected Search");
+        }
+    }
+
+    // ERR-62: search con --team
+    #[test]
+    fn test_search_with_team() {
+        let cli = Cli::try_parse_from(["lql", "search", "OAuth", "--team", "PROD"]).unwrap();
+        if let Command::Search(opts) = cli.command {
+            assert_eq!(opts.team.as_deref(), Some("PROD"));
+        } else {
+            panic!("Expected Search");
+        }
+    }
+
+    // ERR-63: search con --state
+    #[test]
+    fn test_search_with_state() {
+        let cli = Cli::try_parse_from(["lql", "search", "OAuth", "--state", "backlog,unstarted"]).unwrap();
+        if let Command::Search(opts) = cli.command {
+            assert_eq!(opts.state.unwrap(), vec!["backlog", "unstarted"]);
+        } else {
+            panic!("Expected Search");
+        }
+    }
+
+    // --- ERR-65..67: comment CLI parsing ---
+
+    // ERR-65: comment inline
+    #[test]
+    fn test_comment_inline() {
+        let cli = Cli::try_parse_from(["lql", "comment", "PROD-587", "Investigado, el problema es X"]).unwrap();
+        if let Command::Comment(opts) = cli.command {
+            assert_eq!(opts.issue_id, "PROD-587");
+            assert_eq!(opts.body.as_deref(), Some("Investigado, el problema es X"));
+        } else {
+            panic!("Expected Comment");
+        }
+    }
+
+    // ERR-66: comment desde fichero
+    #[test]
+    fn test_comment_from_file() {
+        let cli = Cli::try_parse_from(["lql", "comment", "PROD-587", "--file", "/tmp/c.md"]).unwrap();
+        if let Command::Comment(opts) = cli.command {
+            assert!(opts.body.is_none());
+            assert_eq!(opts.file.as_deref(), Some("/tmp/c.md"));
+        } else {
+            panic!("Expected Comment");
+        }
+    }
+
+    // --- ERR-68..70: relate CLI parsing ---
+
+    // ERR-68: relate blocks
+    #[test]
+    fn test_relate_blocks_parsing() {
+        let cli = Cli::try_parse_from(["lql", "relate", "PROD-587", "blocks", "PROD-588"]).unwrap();
+        if let Command::Relate(opts) = cli.command {
+            assert_eq!(opts.from, "PROD-587");
+            assert_eq!(opts.relation_type, "blocks");
+            assert_eq!(opts.to, "PROD-588");
+        } else {
+            panic!("Expected Relate");
+        }
+    }
+
+    // ERR-69: relate blocked-by
+    #[test]
+    fn test_relate_blocked_by_parsing() {
+        let cli = Cli::try_parse_from(["lql", "relate", "PROD-587", "blocked-by", "PROD-515"]).unwrap();
+        if let Command::Relate(opts) = cli.command {
+            assert_eq!(opts.relation_type, "blocked-by");
+        } else {
+            panic!("Expected Relate");
+        }
+    }
+
+    // ERR-70: relate related
+    #[test]
+    fn test_relate_related_parsing() {
+        let cli = Cli::try_parse_from(["lql", "relate", "PROD-587", "related", "PROD-520"]).unwrap();
+        if let Command::Relate(opts) = cli.command {
+            assert_eq!(opts.relation_type, "related");
+        } else {
+            panic!("Expected Relate");
+        }
+    }
+
     // Priority case-insensitive
     #[test]
     fn test_normalize_priority_case_insensitive() {
