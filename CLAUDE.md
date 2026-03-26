@@ -55,6 +55,10 @@ src/
 └── queries.rs           # GraphQL query/mutation constants
 ```
 
+## Language
+
+All user-facing text (CLI help, error messages, log messages) MUST be in English. Internal code comments may be in Spanish per global CLAUDE.md rules, but anything that appears in `--help`, `stderr`, or `stdout` is English only.
+
 ## Principios
 
 1. **Linear API directo** — NUNCA usar la CLI `linear` ni el MCP. Solo GraphQL vía reqwest.
@@ -69,6 +73,7 @@ src/
 Fichero: `~/.config/lql/config.toml`
 
 Contiene:
+
 - `[auth]` — referencia a 1Password para API key
 - `[defaults]` — sort, states, limit
 - `[context-map]` — directorio → team/project/label

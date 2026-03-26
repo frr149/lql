@@ -4,6 +4,7 @@
 
 Use lql for real tasks. Document every error, surprise, difficulty, and success.
 Each finding becomes either:
+
 - A new normalization/tolerance to add to lql (adapt the sane to the insane)
 - A test case (verify the adaptation works)
 - Evidence that Layer 1 design was correct (or had gaps)
@@ -16,7 +17,7 @@ Each finding becomes either:
 
 **Category:** Noise, not an lql bug — but affects usability.
 
-**Fix:** Build release once (`cargo build --release`), use `./target/release/lql`. Or suppress warnings with `RUSTFLAGS="-A warnings"` during dev. Not an lql issue — Sancho stack doesn't need to handle this.
+**Fix:** Build release once (`cargo build --release`), use `./target/release/lql`. Or suppress warnings with `RUSTFLAGS="-A warnings"` during dev. Not an lql issue — the tolerance stack doesn't need to handle this.
 
 **Layer 1 validation:** N/A (build system, not CLI).
 
@@ -73,6 +74,7 @@ Each finding becomes either:
 **Problem:** clap aliases are transparent — by the time our code runs, `--status` is already `--state`. We can't detect which flag the user typed.
 
 **Possible solutions:**
+
 1. Don't use clap aliases — do raw arg parsing and normalize manually (more code, more control)
 2. Accept current behavior (silent alias is fine, the LLM doesn't need to learn)
 3. Use clap's `value_parser` with a wrapper that logs
@@ -103,12 +105,12 @@ Each finding becomes either:
 
 ## Summary
 
-| Category | Count | Details |
-|----------|-------|---------|
-| ✅ Layer 1 correct | 8 | Aliases, normalization, validation, formats |
-| ⚠ Improvement needed | 1 | Label error message too verbose (#5) — fixed |
-| 💡 Design question | 1 | Flag name normalization visibility (#7) — resolved: silent alias |
-| 📝 Noise | 1 | Cargo warnings (#1) |
+| Category             | Count | Details                                                          |
+| -------------------- | ----- | ---------------------------------------------------------------- |
+| ✅ Layer 1 correct   | 8     | Aliases, normalization, validation, formats                      |
+| ⚠ Improvement needed | 1     | Label error message too verbose (#5) — fixed                     |
+| 💡 Design question   | 1     | Flag name normalization visibility (#7) — resolved: silent alias |
+| 📝 Noise             | 1     | Cargo warnings (#1)                                              |
 
 **Key MDD insight:** The biggest surprise was NOT an error — it was finding that everything worked as designed. The 500+ historical errors from Layer 1 successfully predicted what Layer 2 would test. The two-layer approach validates itself: Layer 1 built the right defenses, Layer 2 confirmed they hold.
 
@@ -118,24 +120,24 @@ Measures how well the upfront design (PRD + ERR test specs) predicted real-world
 
 **Definition:** Of all findings discovered during Layer 2 adversarial testing, what percentage was already correctly handled by the Layer 1 design?
 
-| Metric | Value | Notes |
-|--------|-------|-------|
-| Layer 2 findings | 10 | First adversarial session (2026-03-26) |
-| Already correct in Layer 1 | 8 | Design predicted real behavior |
-| Gaps found | 1 | Label error verbosity (fixed) |
-| Open questions | 1 | Flag visibility (resolved: silent) |
-| **Hit rate** | **80%** | |
+| Metric                     | Value   | Notes                                  |
+| -------------------------- | ------- | -------------------------------------- |
+| Layer 2 findings           | 10      | First adversarial session (2026-03-26) |
+| Already correct in Layer 1 | 8       | Design predicted real behavior         |
+| Gaps found                 | 1       | Label error verbosity (fixed)          |
+| Open questions             | 1       | Flag visibility (resolved: silent)     |
+| **Hit rate**               | **80%** |                                        |
 
 **ERR test coverage (quantitative):**
 
-| Metric | Value |
-|--------|-------|
-| Total ERR specs in PRD | 75 |
-| Unit-testable (no API) | 64 |
-| Unit tests passing | 64/64 (100%) |
-| Integration-only (need API/mocking) | 11 |
-| Out of scope (v2.0) | 1 (ERR-28) |
-| **Overall ERR coverage** | **85%** |
+| Metric                              | Value        |
+| ----------------------------------- | ------------ |
+| Total ERR specs in PRD              | 75           |
+| Unit-testable (no API)              | 64           |
+| Unit tests passing                  | 64/64 (100%) |
+| Integration-only (need API/mocking) | 11           |
+| Out of scope (v2.0)                 | 1 (ERR-28)   |
+| **Overall ERR coverage**            | **85%**      |
 
 The 11 remaining are integration tests that require real Linear API calls or I/O mocking (stdin, op process). They test: op read timeout (ERR-46..47), issue not found (ERR-53..54), search empty results (ERR-64), comment from stdin (ERR-67), duplicate detection (ERR-72..73), concurrency (ERR-74..75).
 
@@ -150,12 +152,12 @@ This is Postel's Law (TCP robustness principle: "be conservative in what you sen
 1. **Liberality limit:** if accepting would corrupt data, reject
 2. **Transparency:** always state what was received vs what was assumed
 
-| Input | Destructive? | Action | Message |
-|-------|-------------|--------|---------|
-| `--status Done` | No | Accept | `ℹ --status → assumed --state` |
-| `--state Todo` | No | Normalize | `ℹ State "Todo" → normalized to "unstarted"` |
-| `--priority urgent` | No | Normalize | `ℹ Priority "urgent" → normalized to 1` |
-| `--label kubernetes` | **Yes** (garbage in Linear) | **Reject** | `✗ Label "kubernetes" not found` |
-| `--team TOK` | **Yes** (retired team) | **Reject** | `✗ Team TOK is retired` |
+| Input                | Destructive?                | Action     | Message                                      |
+| -------------------- | --------------------------- | ---------- | -------------------------------------------- |
+| `--status Done`      | No                          | Accept     | `ℹ --status → assumed --state`               |
+| `--state Todo`       | No                          | Normalize  | `ℹ State "Todo" → normalized to "unstarted"` |
+| `--priority urgent`  | No                          | Normalize  | `ℹ Priority "urgent" → normalized to 1`      |
+| `--label kubernetes` | **Yes** (garbage in Linear) | **Reject** | `✗ Label "kubernetes" not found`             |
+| `--team TOK`         | **Yes** (retired team)      | **Reject** | `✗ Team TOK is retired`                      |
 
-This principle is the Sancho Panza contract: redirect the charge when it hits a windmill, but tackle Don Quixote to the ground when he's about to ride off a cliff.
+This is the tolerance contract: normalize what's harmless, reject what would corrupt data, and always tell the user what you assumed.

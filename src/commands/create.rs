@@ -153,11 +153,11 @@ fn check_duplicates(client: &dyn GraphQLClient, title: &str) -> Result<(), Strin
                 .collect();
 
             if !similar.is_empty() {
-                eprintln!("⚠ Issues similares encontradas:");
+                eprintln!("⚠ Similar issues found:");
                 for s in &similar {
                     eprintln!("{s}");
                 }
-                eprintln!("Creando de todos modos. Usa --force para omitir esta comprobación.");
+                eprintln!("Creating anyway. Use --force to skip this check.");
             }
         }
     }

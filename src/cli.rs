@@ -13,77 +13,76 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
-    /// Listar issues
+    /// List issues (with filters, sorting, limits)
     List(ListOpts),
-    /// Crear issue
+    /// Create a new issue
     Create(CreateOpts),
-    /// Actualizar issue
+    /// Update an existing issue
     Update(UpdateOpts),
-    /// Ver detalle de issue
+    /// View issue details
     View(ViewOpts),
-    /// Buscar issues por texto
+    /// Search issues by text
     Search(SearchOpts),
-    /// Añadir comentario a issue
+    /// Add a comment to an issue
     Comment(CommentOpts),
-    /// Crear relación entre issues
+    /// Create a relation between issues
     Relate(RelateOpts),
-    /// Listar labels disponibles
+    /// List available labels
     Labels(LabelsOpts),
-    /// Validar config, auth, teams y labels
+    /// Validate config, auth, teams and labels
     Doctor,
-    /// Mostrar resolución del cwd (team/project/label)
+    /// Show resolved context for current directory
     Context,
-    /// Ejecutar query GraphQL directa
+    /// Execute a raw GraphQL query
     Raw(RawOpts),
 }
 
 #[derive(Parser, Debug)]
 pub struct ListOpts {
-    /// Filtrar por estado (acepta nombres UI: Todo, Done, "In Progress")
+    /// Filter by state (accepts UI names: Todo, Done, "In Progress")
     #[arg(long, alias = "status", value_delimiter = ',')]
     pub state: Option<Vec<String>>,
 
-    /// Filtrar por label
+    /// Filter by label
     #[arg(long)]
     pub label: Option<Vec<String>>,
 
-    /// Filtrar por proyecto (case-insensitive)
+    /// Filter by project (case-insensitive)
     #[arg(long)]
     pub project: Option<String>,
 
-    /// Filtrar por team (override auto-detect)
+    /// Filter by team (overrides auto-detect)
     #[arg(long)]
     pub team: Option<String>,
 
-    /// Solo issues vencidas
+    /// Only overdue issues
     #[arg(long)]
     pub overdue: bool,
 
-    /// Todos los teams (ignorar context-map)
+    /// All teams (ignore context-map)
     #[arg(long)]
     pub all_teams: bool,
 
-    /// Ordenar por (default: priority)
+    /// Sort by field (default: priority)
     #[arg(long, default_value = "priority")]
     pub sort: String,
 
-    /// Límite de resultados
+    /// Max results
     #[arg(long)]
     pub limit: Option<u32>,
 
-    /// Sin límite (todos los resultados)
+    /// No limit (all results)
     #[arg(long)]
     pub all: bool,
 
-    /// Output en JSONL
+    /// Output as JSONL
     #[arg(long)]
     pub json: bool,
 
-    /// Filtrar por prioridad (acepta nombres: urgent, high, medium, low)
+    /// Filter by priority (accepts names: urgent, high, medium, low)
     #[arg(long)]
     pub priority: Option<String>,
 
-    // Flags ignorados silenciosamente (compatibilidad CLI oficial)
     #[arg(long, hide = true)]
     pub no_pager: bool,
     #[arg(long, hide = true)]
@@ -92,22 +91,22 @@ pub struct ListOpts {
 
 #[derive(Parser, Debug)]
 pub struct CreateOpts {
-    /// Título de la issue
+    /// Issue title
     pub title: String,
 
-    /// Descripción inline
+    /// Inline description
     #[arg(short, long)]
     pub description: Option<String>,
 
-    /// Descripción desde fichero
+    /// Description from file
     #[arg(long)]
     pub description_file: Option<String>,
 
-    /// Team (override auto-detect)
+    /// Team (overrides auto-detect)
     #[arg(long)]
     pub team: Option<String>,
 
-    /// Proyecto (case-insensitive)
+    /// Project (case-insensitive)
     #[arg(long)]
     pub project: Option<String>,
 
@@ -115,27 +114,26 @@ pub struct CreateOpts {
     #[arg(long)]
     pub label: Option<Vec<String>>,
 
-    /// Prioridad (nombre o número)
+    /// Priority (name or number)
     #[arg(long)]
     pub priority: Option<String>,
 
-    /// Fecha de vencimiento (ISO, relativa: friday, +7d)
+    /// Due date (ISO, relative: friday, +7d)
     #[arg(long)]
     pub due: Option<String>,
 
-    /// Estado inicial
+    /// Initial state
     #[arg(long, alias = "status")]
     pub state: Option<String>,
 
-    /// Omitir detección de duplicados
+    /// Skip duplicate detection
     #[arg(long)]
     pub force: bool,
 
-    /// Output en JSON
+    /// Output as JSON
     #[arg(long)]
     pub json: bool,
 
-    // Flags ignorados silenciosamente
     #[arg(long, hide = true)]
     pub no_pager: bool,
     #[arg(long, hide = true)]
@@ -144,128 +142,128 @@ pub struct CreateOpts {
 
 #[derive(Parser, Debug)]
 pub struct UpdateOpts {
-    /// Issue ID (ej: PROD-587)
+    /// Issue ID (e.g. PROD-587)
     pub issue_id: String,
 
-    /// Cambiar estado
+    /// Change state
     #[arg(long, alias = "status")]
     pub state: Option<String>,
 
-    /// Cambiar prioridad
+    /// Change priority
     #[arg(long)]
     pub priority: Option<String>,
 
-    /// Cambiar proyecto
+    /// Change project
     #[arg(long)]
     pub project: Option<String>,
 
-    /// Añadir label
+    /// Add label
     #[arg(long)]
     pub label: Option<Vec<String>>,
 
-    /// Cambiar título
+    /// Change title
     #[arg(long)]
     pub title: Option<String>,
 
-    /// Descripción inline
+    /// Inline description
     #[arg(short, long)]
     pub description: Option<String>,
 
-    /// Descripción desde fichero
+    /// Description from file
     #[arg(long)]
     pub description_file: Option<String>,
 
-    /// Cambiar due date
+    /// Change due date
     #[arg(long)]
     pub due: Option<String>,
 
-    /// Output en JSON
+    /// Output as JSON
     #[arg(long)]
     pub json: bool,
 }
 
 #[derive(Parser, Debug)]
 pub struct ViewOpts {
-    /// Issue ID (ej: PROD-587)
+    /// Issue ID (e.g. PROD-587)
     pub issue_id: String,
 
-    /// Output en JSON
+    /// Output as JSON
     #[arg(long)]
     pub json: bool,
 }
 
 #[derive(Parser, Debug)]
 pub struct SearchOpts {
-    /// Término de búsqueda
+    /// Search term
     pub query: String,
 
-    /// Filtrar por team
+    /// Filter by team
     #[arg(long)]
     pub team: Option<String>,
 
-    /// Filtrar por estado
+    /// Filter by state
     #[arg(long, alias = "status", value_delimiter = ',')]
     pub state: Option<Vec<String>>,
 
-    /// Límite de resultados
+    /// Max results
     #[arg(long)]
     pub limit: Option<u32>,
 
-    /// Output en JSONL
+    /// Output as JSONL
     #[arg(long)]
     pub json: bool,
 }
 
 #[derive(Parser, Debug)]
 pub struct CommentOpts {
-    /// Issue ID (ej: PROD-587)
+    /// Issue ID (e.g. PROD-587)
     pub issue_id: String,
 
-    /// Texto del comentario
+    /// Comment text
     pub body: Option<String>,
 
-    /// Comentario desde fichero
+    /// Comment from file
     #[arg(long)]
     pub file: Option<String>,
 }
 
 #[derive(Parser, Debug)]
 pub struct RelateOpts {
-    /// Issue origen (ej: PROD-587)
+    /// Source issue (e.g. PROD-587)
     pub from: String,
 
-    /// Tipo de relación: blocks, blocked-by, related
+    /// Relation type: blocks, blocked-by, related
     pub relation_type: String,
 
-    /// Issue destino (ej: PROD-588)
+    /// Target issue (e.g. PROD-588)
     pub to: String,
 }
 
 #[derive(Parser, Debug)]
 pub struct LabelsOpts {
-    /// Filtrar por team
+    /// Filter by team
     #[arg(long)]
     pub team: Option<String>,
 
-    /// Output en JSON
+    /// Output as JSON
     #[arg(long)]
     pub json: bool,
 }
 
 #[derive(Parser, Debug)]
 pub struct RawOpts {
-    /// Query GraphQL inline
+    /// Inline GraphQL query
     pub query: Option<String>,
 
-    /// Query desde fichero
+    /// Query from file
     #[arg(long)]
     pub file: Option<String>,
 
-    /// Variable key=value (repetible)
+    /// Variable key=value (repeatable)
     #[arg(long = "var")]
     pub vars: Option<Vec<String>>,
 
-    /// Variables desde fichero JSON
+    /// Variables from JSON file
     #[arg(long)]
     pub vars_file: Option<String>,
 }
