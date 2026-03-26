@@ -1,0 +1,132 @@
+{
+  "data": {
+    "searchIssues": {
+      "nodes": [
+        {
+          "id": "2915f419-f31c-438f-b48b-3b58b9b8fb48",
+          "identifier": "TOOL-33",
+          "title": "Scaffolding: Cargo.toml, main.rs con clap, estructura de directorios",
+          "priority": 1,
+          "state": {
+            "name": "Backlog",
+            "type": "backlog"
+          },
+          "labels": {
+            "nodes": [
+              {
+                "name": "lql"
+              }
+            ]
+          },
+          "project": null,
+          "team": {
+            "key": "TOOL"
+          },
+          "createdAt": "2026-03-25T21:49:46.436Z",
+          "dueDate": null,
+          "url": "https://linear.app/frr149/issue/TOOL-33/scaffolding-cargotoml-mainrs-con-clap-estructura-de-directorios"
+        },
+        {
+          "id": "7b30931d-b4f5-4d08-8d48-5a24904c2c36",
+          "identifier": "PROD-429",
+          "title": "D0-03: UI M\u00ednima - Layout",
+          "priority": 0,
+          "state": {
+            "name": "Backlog",
+            "type": "backlog"
+          },
+          "labels": {
+            "nodes": [
+              {
+                "name": "dogfood"
+              }
+            ]
+          },
+          "project": null,
+          "team": {
+            "key": "PROD"
+          },
+          "createdAt": "2026-01-13T14:40:30.773Z",
+          "dueDate": null,
+          "url": "https://linear.app/frr149/issue/PROD-429/d0-03-ui-minima-layout"
+        },
+        {
+          "id": "79a5706f-24dd-4e17-97ed-33dbfd708f20",
+          "identifier": "BAT-2",
+          "title": "D0-01: Scaffold del Proyecto",
+          "priority": 0,
+          "state": {
+            "name": "Done",
+            "type": "completed"
+          },
+          "labels": {
+            "nodes": [
+              {
+                "name": "dogfood"
+              }
+            ]
+          },
+          "project": {
+            "name": "Dogfood v0.1"
+          },
+          "team": {
+            "key": "BAT"
+          },
+          "createdAt": "2026-01-13T14:40:27.795Z",
+          "dueDate": null,
+          "url": "https://linear.app/frr149/issue/BAT-2/d0-01-scaffold-del-proyecto"
+        },
+        {
+          "id": "f0dc6c20-0e99-40a0-b17f-33f40ee77ab2",
+          "identifier": "CONT-70",
+          "title": "Meta skills o high order skills",
+          "priority": 2,
+          "state": {
+            "name": "Backlog",
+            "type": "backlog"
+          },
+          "labels": {
+            "nodes": [
+              {
+                "name": "claude-code"
+              }
+            ]
+          },
+          "project": {
+            "name": "Blog"
+          },
+          "team": {
+            "key": "CONT"
+          },
+          "createdAt": "2026-03-13T21:39:09.849Z",
+          "dueDate": null,
+          "url": "https://linear.app/frr149/issue/CONT-70/meta-skills-o-high-order-skills"
+        },
+        {
+          "id": "63189840-0bfb-4f2a-8d85-472e592ab312",
+          "identifier": "PROD-581",
+          "title": "Prototipar \u00e1lgebra de skills para Claude Code (combinadores /map, /reduce, /pipe, /until)",
+          "priority": 0,
+          "state": {
+            "name": "Backlog",
+            "type": "backlog"
+          },
+          "labels": {
+            "nodes": [
+              {
+                "name": "claude-code"
+              }
+            ]
+          },
+          "project": null,
+          "team": {
+            "key": "PROD"
+          },
+          "createdAt": "2026-03-23T13:25:08.905Z",
+          "dueDate": null,
+          "url": "https://linear.app/frr149/issue/PROD-581/prototipar-algebra-de-skills-para-claude-code-combinadores-map-reduce"
+        }
+      ]
+    }
+  }
+}

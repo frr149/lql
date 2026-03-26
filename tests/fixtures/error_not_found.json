@@ -1,0 +1,11 @@
+{
+  "data": null,
+  "errors": [
+    {
+      "message": "Entity not found",
+      "extensions": {
+        "code": "ENTITY_NOT_FOUND"
+      }
+    }
+  ]
+}

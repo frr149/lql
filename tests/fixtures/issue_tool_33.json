@@ -1,0 +1,39 @@
+{
+  "data": {
+    "issues": {
+      "nodes": [
+        {
+          "id": "2915f419-f31c-438f-b48b-3b58b9b8fb48",
+          "identifier": "TOOL-33",
+          "title": "Scaffolding: Cargo.toml, main.rs con clap, estructura de directorios",
+          "priority": 1,
+          "description": "Crear proyecto Rust con:\n\n* Cargo.toml (edici\u00f3n 2024, dependencias: clap derive, reqwest blocking, serde, serde_json, toml, fs2, chrono)\n* src/main.rs con clap App y subcomandos vac\u00edos\n* Estructura: src/{cli,config,client,auth,format,queries}.rs + src/commands/\n* config.example.toml\n\nEl binario debe compilar y mostrar --help con todos los subcomandos listados (sin implementar).",
+          "state": {
+            "name": "Backlog",
+            "type": "backlog"
+          },
+          "labels": {
+            "nodes": [
+              {
+                "name": "lql"
+              }
+            ]
+          },
+          "project": null,
+          "team": {
+            "key": "TOOL"
+          },
+          "createdAt": "2026-03-25T21:49:46.436Z",
+          "dueDate": null,
+          "url": "https://linear.app/frr149/issue/TOOL-33/scaffolding-cargotoml-mainrs-con-clap-estructura-de-directorios",
+          "relations": {
+            "nodes": []
+          },
+          "comments": {
+            "nodes": []
+          }
+        }
+      ]
+    }
+  }
+}

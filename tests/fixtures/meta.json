@@ -1,0 +1,1187 @@
+{
+  "data": {
+    "teams": {
+      "nodes": [
+        {
+          "id": "6b0c7b6d-d36c-465c-86b2-07b1207dfc61",
+          "key": "KC",
+          "name": "KeepCoding",
+          "states": {
+            "nodes": [
+              {
+                "id": "bd96673a-1218-46e8-9858-a31248225e14",
+                "name": "Done",
+                "type": "completed"
+              },
+              {
+                "id": "97993ae9-1d0b-4b8f-b620-3f12ad19f1c0",
+                "name": "In Progress",
+                "type": "started"
+              },
+              {
+                "id": "5c838705-398c-4d9b-a7ff-872f583e3cbd",
+                "name": "Todo",
+                "type": "unstarted"
+              },
+              {
+                "id": "5a5352b6-1515-42ec-8505-96407a25d36d",
+                "name": "Backlog",
+                "type": "backlog"
+              },
+              {
+                "id": "1cb9c7c3-7ed8-455c-8e43-32961a50b2cf",
+                "name": "Duplicate",
+                "type": "canceled"
+              },
+              {
+                "id": "1a83b9f1-7f8b-4faa-9fb8-c9067ba421df",
+                "name": "Canceled",
+                "type": "canceled"
+              }
+            ]
+          },
+          "projects": {
+            "nodes": []
+          }
+        },
+        {
+          "id": "22b87834-0187-4a1b-84ae-ce13d3f2674b",
+          "key": "PRIV",
+          "name": "Private",
+          "states": {
+            "nodes": [
+              {
+                "id": "fdfa0af7-37cd-4f7b-8e72-d672704b5272",
+                "name": "Backlog",
+                "type": "backlog"
+              },
+              {
+                "id": "ca05f8e6-ca43-42e8-937e-6879bb388f48",
+                "name": "Canceled",
+                "type": "canceled"
+              },
+              {
+                "id": "6a5cffea-e1d4-413c-910d-9bb562181fa2",
+                "name": "Todo",
+                "type": "unstarted"
+              },
+              {
+                "id": "3ad64e40-985a-44c5-937a-fd424b65aa34",
+                "name": "Duplicate",
+                "type": "canceled"
+              },
+              {
+                "id": "11cd5e1e-3147-48ab-b48f-2709b5df2bb5",
+                "name": "In Progress",
+                "type": "started"
+              },
+              {
+                "id": "028261c6-420c-4d95-91b6-7cf175fb9f8a",
+                "name": "Done",
+                "type": "completed"
+              }
+            ]
+          },
+          "projects": {
+            "nodes": []
+          }
+        },
+        {
+          "id": "12afbed3-86a2-4733-819e-071003b27c67",
+          "key": "CONT",
+          "name": "Content",
+          "states": {
+            "nodes": [
+              {
+                "id": "fce74c89-b4e8-49e9-9923-a1229d2612ad",
+                "name": "Canceled",
+                "type": "canceled"
+              },
+              {
+                "id": "dcad5441-6b2d-4ae2-b254-dad0302d6d0b",
+                "name": "Done",
+                "type": "completed"
+              },
+              {
+                "id": "52aff7aa-25a2-4f7f-bb87-0033e8b7b8e5",
+                "name": "In Progress",
+                "type": "started"
+              },
+              {
+                "id": "49cc1519-9fc6-46c2-84b0-d2129b3a2b20",
+                "name": "Duplicate",
+                "type": "canceled"
+              },
+              {
+                "id": "2b9b2e4d-9976-44c6-8189-78976c44eef1",
+                "name": "Backlog",
+                "type": "backlog"
+              },
+              {
+                "id": "27674bf7-8f24-4734-94e1-97e2143f0e99",
+                "name": "Todo",
+                "type": "unstarted"
+              }
+            ]
+          },
+          "projects": {
+            "nodes": [
+              {
+                "id": "8d45e351-6f09-4ee2-a680-50bcde8ae1a8",
+                "name": "Blog"
+              },
+              {
+                "id": "621299de-48bb-4b5d-91b1-d2de457c7fca",
+                "name": "Adversarial Programming"
+              }
+            ]
+          }
+        },
+        {
+          "id": "585b3454-24a4-45ca-a487-61908444b590",
+          "key": "TOOL",
+          "name": "Tools",
+          "states": {
+            "nodes": [
+              {
+                "id": "c0f7f19d-060e-44f0-a13d-a5d90b7a2a6b",
+                "name": "Canceled",
+                "type": "canceled"
+              },
+              {
+                "id": "bc4786a7-4bdf-420e-924a-c586186853f9",
+                "name": "Backlog",
+                "type": "backlog"
+              },
+              {
+                "id": "ab3f7117-7d9a-4d03-896a-7878dbe89d3a",
+                "name": "Done",
+                "type": "completed"
+              },
+              {
+                "id": "a161197d-9ea3-4603-a112-62566f2c12f4",
+                "name": "In Progress",
+                "type": "started"
+              },
+              {
+                "id": "61a22747-1781-420a-83c5-8103dec44745",
+                "name": "Duplicate",
+                "type": "canceled"
+              },
+              {
+                "id": "48218bbf-8d45-4b7b-8a55-3f5d79fb9fc4",
+                "name": "Todo",
+                "type": "unstarted"
+              }
+            ]
+          },
+          "projects": {
+            "nodes": [
+              {
+                "id": "b7f5a364-0095-4829-9157-9cec6bb64622",
+                "name": "memento"
+              },
+              {
+                "id": "ec3c9f14-c09d-4e20-aa1f-083908ca2f29",
+                "name": "auto_correct"
+              },
+              {
+                "id": "e1fba641-ece2-41a4-ba32-7b3d41284503",
+                "name": "Social Publisher"
+              }
+            ]
+          }
+        },
+        {
+          "id": "1260cd55-e341-49e2-af15-5c93ca2c169a",
+          "key": "PROD",
+          "name": "Products",
+          "states": {
+            "nodes": [
+              {
+                "id": "faabcee3-bf15-44b4-875b-3c9e1bb99553",
+                "name": "Todo",
+                "type": "unstarted"
+              },
+              {
+                "id": "cb40d586-7770-4ba7-9cad-d18ee9a2cb14",
+                "name": "Duplicate",
+                "type": "canceled"
+              },
+              {
+                "id": "a1166bd8-b9c7-479c-afcc-ba4aa344ff04",
+                "name": "Done",
+                "type": "completed"
+              },
+              {
+                "id": "92354ff5-2e03-4fc4-93b7-b63d97e876c3",
+                "name": "Backlog",
+                "type": "backlog"
+              },
+              {
+                "id": "6b85dd40-5b50-4bb9-b953-662565cff962",
+                "name": "Canceled",
+                "type": "canceled"
+              },
+              {
+                "id": "5657109e-075f-4225-801f-01afc7b74f71",
+                "name": "In Progress",
+                "type": "started"
+              }
+            ]
+          },
+          "projects": {
+            "nodes": [
+              {
+                "id": "f734d482-a842-4465-a6cc-5881646a7c9a",
+                "name": "MOT"
+              },
+              {
+                "id": "3cefd624-ea14-49cb-add4-28d775630fe7",
+                "name": "RustyClaw"
+              },
+              {
+                "id": "a37f56e4-fe5f-4462-a0b2-0f74bfad3c61",
+                "name": "BattleRoom"
+              },
+              {
+                "id": "29004be9-d14e-4d13-89e6-b85a6b507fd9",
+                "name": "Qualitra"
+              },
+              {
+                "id": "3593d2ed-e7c5-4f64-8375-af5987d0272e",
+                "name": "Acme"
+              },
+              {
+                "id": "25df6c56-057d-4751-8390-c03c1175f958",
+                "name": "Tokamak"
+              }
+            ]
+          }
+        },
+        {
+          "id": "7bebaf73-9c78-4937-a3cf-a795aaf078fa",
+          "key": "NID",
+          "name": "New Ideas",
+          "states": {
+            "nodes": [
+              {
+                "id": "e12da8bb-bf4d-44d1-866f-2fd38e864e8b",
+                "name": "In Progress",
+                "type": "started"
+              },
+              {
+                "id": "ab2a984d-3609-41d6-9b92-e681f84cea5e",
+                "name": "Canceled",
+                "type": "canceled"
+              },
+              {
+                "id": "9d4c8dd3-c122-4695-8a3f-f62bdc749434",
+                "name": "Duplicate",
+                "type": "canceled"
+              },
+              {
+                "id": "976b40c5-3676-4cd9-9926-373f3ab1dd1a",
+                "name": "Todo",
+                "type": "unstarted"
+              },
+              {
+                "id": "6319aeff-e864-48ac-bd30-3d84fd9ed239",
+                "name": "Backlog",
+                "type": "backlog"
+              },
+              {
+                "id": "5d86e7a2-cf47-45ae-8e8e-1f0fb83da607",
+                "name": "Done",
+                "type": "completed"
+              }
+            ]
+          },
+          "projects": {
+            "nodes": []
+          }
+        },
+        {
+          "id": "7131ddc4-5063-4b98-9371-47870161e34d",
+          "key": "CRS",
+          "name": "courses",
+          "states": {
+            "nodes": [
+              {
+                "id": "f5619a02-06d5-44fe-b04d-16daa64723b8",
+                "name": "Done",
+                "type": "completed"
+              },
+              {
+                "id": "a1cfdc0c-722f-49e9-8ba7-3c4be05f3f7b",
+                "name": "Duplicate",
+                "type": "canceled"
+              },
+              {
+                "id": "9ecb040d-b50e-4c13-a816-e30d661cb6ba",
+                "name": "In Progress",
+                "type": "started"
+              },
+              {
+                "id": "9c368f63-a53f-4f42-8baa-9200b6b37f7f",
+                "name": "Backlog",
+                "type": "backlog"
+              },
+              {
+                "id": "2bfa6c32-f703-41ae-b19c-bd15dcfa68c1",
+                "name": "Todo",
+                "type": "unstarted"
+              },
+              {
+                "id": "020dc20d-e27d-43e2-b34a-6f4687bb91ca",
+                "name": "Canceled",
+                "type": "canceled"
+              }
+            ]
+          },
+          "projects": {
+            "nodes": []
+          }
+        },
+        {
+          "id": "fbbd1094-a511-4cbf-b0a1-8f608ebba234",
+          "key": "SOC",
+          "name": "Social Publisher",
+          "states": {
+            "nodes": [
+              {
+                "id": "f51b2706-a7b7-4d83-9b0a-019242d1ca7b",
+                "name": "Canceled",
+                "type": "canceled"
+              },
+              {
+                "id": "f0887d2e-175b-4886-b7e6-99042f8449a9",
+                "name": "In Progress",
+                "type": "started"
+              },
+              {
+                "id": "8ec72973-39ca-4948-acf2-70c12ecd3ed5",
+                "name": "Backlog",
+                "type": "backlog"
+              },
+              {
+                "id": "70fb8bf0-8d20-4b3e-a231-8710eabb0f8e",
+                "name": "Todo",
+                "type": "unstarted"
+              },
+              {
+                "id": "655be5c3-1e4c-4520-90b6-a4f25b536d55",
+                "name": "Duplicate",
+                "type": "canceled"
+              },
+              {
+                "id": "5a96d513-29a3-4174-b436-fcfebde4580b",
+                "name": "Done",
+                "type": "completed"
+              }
+            ]
+          },
+          "projects": {
+            "nodes": [
+              {
+                "id": "51178864-1c13-41ce-9308-ed33afe21be6",
+                "name": "Social Publisher MVP"
+              }
+            ]
+          }
+        },
+        {
+          "id": "b464a1f1-1925-4ee5-98fb-0e0142b01db4",
+          "key": "RST",
+          "name": "RustyClaw",
+          "states": {
+            "nodes": [
+              {
+                "id": "ea631b78-76ac-491f-9e99-1b0d6df8450d",
+                "name": "Duplicate",
+                "type": "canceled"
+              },
+              {
+                "id": "ddca074d-47f2-4591-9822-590a7fe2f66a",
+                "name": "Todo",
+                "type": "unstarted"
+              },
+              {
+                "id": "9ae45740-2b8a-4adf-bca1-ec80632abcab",
+                "name": "Backlog",
+                "type": "backlog"
+              },
+              {
+                "id": "87ee7134-2f33-4c36-8ec4-b946cb0bb6ce",
+                "name": "Done",
+                "type": "completed"
+              },
+              {
+                "id": "62d342bb-6916-4007-9491-d091a5584985",
+                "name": "In Progress",
+                "type": "started"
+              },
+              {
+                "id": "24afe1bd-2b6a-44de-a5a5-54bf3538724d",
+                "name": "Canceled",
+                "type": "canceled"
+              }
+            ]
+          },
+          "projects": {
+            "nodes": [
+              {
+                "id": "9b4a7688-7d5b-4e2b-9481-376d1299b686",
+                "name": "Blog Series"
+              },
+              {
+                "id": "54c8f44d-d892-4221-b699-c70e1ec6d1aa",
+                "name": "Phase 5: Differentiation"
+              },
+              {
+                "id": "95659e58-3cab-449f-a7b8-3b31a35852c1",
+                "name": "Phase 4: MCP + Polish"
+              },
+              {
+                "id": "7b1b6a04-24cc-4e0f-86f8-30fa4eb2a226",
+                "name": "Phase 3: Channels"
+              },
+              {
+                "id": "f91dd902-46b7-4074-a13c-6283e837794e",
+                "name": "Phase 2: Providers + Tools"
+              },
+              {
+                "id": "d4b08dbd-e15c-4966-9e47-c59143b0cad0",
+                "name": "Phase 1: Core Loop"
+              },
+              {
+                "id": "6f7a4230-914c-4310-921a-d79accc1aa79",
+                "name": "Phase 0: Scaffolding"
+              }
+            ]
+          }
+        },
+        {
+          "id": "7e3d7ac9-563c-44d1-8b58-123d8097eca5",
+          "key": "TOK",
+          "name": "Tokamak",
+          "states": {
+            "nodes": [
+              {
+                "id": "fd9dadf1-b3d9-46f1-bab4-0b8069c49bc8",
+                "name": "Done",
+                "type": "completed"
+              },
+              {
+                "id": "fc0b625d-bd92-4c08-becd-331666d8a7d9",
+                "name": "Todo",
+                "type": "unstarted"
+              },
+              {
+                "id": "c87ed651-5491-484b-b652-50695c749fb1",
+                "name": "Backlog",
+                "type": "backlog"
+              },
+              {
+                "id": "c574378f-5a0a-4a16-9ac9-ca30c4f19592",
+                "name": "In Progress",
+                "type": "started"
+              },
+              {
+                "id": "bdcb457d-138b-4254-ab38-a8cd542b56c0",
+                "name": "Canceled",
+                "type": "canceled"
+              },
+              {
+                "id": "1be8cd20-cb96-4555-a125-a286c3db9342",
+                "name": "Duplicate",
+                "type": "canceled"
+              }
+            ]
+          },
+          "projects": {
+            "nodes": [
+              {
+                "id": "e26a8f0f-6544-4491-ac38-b7e9cfbe669b",
+                "name": "v3.0"
+              },
+              {
+                "id": "1bcacbc7-8733-4838-9607-257d9b5e04b7",
+                "name": "Remote Control v2"
+              },
+              {
+                "id": "7fede80f-0e28-4d82-aaf3-64dd7a1c3260",
+                "name": "Remote Control"
+              },
+              {
+                "id": "706768c7-b9b0-468a-bcc7-1dcb0e307818",
+                "name": "Tokamak v2.0 \u2014 Multi-Harness"
+              },
+              {
+                "id": "6d53014f-6b7d-4608-a4ec-6c83dc6625fa",
+                "name": "Codex Provider"
+              },
+              {
+                "id": "5c57c93f-04bd-4584-a214-cfd4f0c358a7",
+                "name": "Marketing Launch"
+              },
+              {
+                "id": "15f398db-e8e0-4327-a546-801b6cefef6f",
+                "name": "Marketing & Growth"
+              },
+              {
+                "id": "722182b2-2a80-48ec-b89f-ba0e168d8251",
+                "name": "v1.x \u2014 App Improvements"
+              },
+              {
+                "id": "003dafaa-f5f1-439f-bcf4-b20ca030effd",
+                "name": "Post-App Store"
+              },
+              {
+                "id": "7d004e17-13ef-4b85-a079-38181564d182",
+                "name": "Tokamak v2.0 \u2014 Backend & Social"
+              }
+            ]
+          }
+        },
+        {
+          "id": "e989c39c-59e5-4214-8662-e221fd63b1a5",
+          "key": "AUT",
+          "name": "auto_correct",
+          "states": {
+            "nodes": [
+              {
+                "id": "fd91406f-55d6-48f8-95f9-0ab0b20f70b3",
+                "name": "In Progress",
+                "type": "started"
+              },
+              {
+                "id": "fd569407-4b12-4a7d-a3b9-db4d85e80d79",
+                "name": "Backlog",
+                "type": "backlog"
+              },
+              {
+                "id": "6e74daa2-2144-42d4-a2ff-1259d500749f",
+                "name": "Todo",
+                "type": "unstarted"
+              },
+              {
+                "id": "69469eee-fe34-4617-ae83-5df6fcd29b9b",
+                "name": "Duplicate",
+                "type": "canceled"
+              },
+              {
+                "id": "3ed2c0c4-259f-4a21-b670-908d6f85505f",
+                "name": "Done",
+                "type": "completed"
+              },
+              {
+                "id": "0b5376e0-4665-405d-8664-631e1d3bbf2e",
+                "name": "Canceled",
+                "type": "canceled"
+              }
+            ]
+          },
+          "projects": {
+            "nodes": [
+              {
+                "id": "f4d7378c-246f-4111-a070-bdc65e287e84",
+                "name": "AutoCorrect v2: Sistema de correcci\u00f3n multi-pr\u00e1ctica"
+              }
+            ]
+          }
+        },
+        {
+          "id": "103ad7fc-5c59-4d29-9746-aa65b3879828",
+          "key": "QUA",
+          "name": "qualitra",
+          "states": {
+            "nodes": [
+              {
+                "id": "f01007b3-1e34-4e6f-9f2b-dbacbae92a7f",
+                "name": "Canceled",
+                "type": "canceled"
+              },
+              {
+                "id": "b6c081b4-9366-4fe2-96e9-9b982db98246",
+                "name": "Duplicate",
+                "type": "canceled"
+              },
+              {
+                "id": "b32001f2-3ede-4a51-83f3-279252d065c4",
+                "name": "Todo",
+                "type": "unstarted"
+              },
+              {
+                "id": "9de75b38-7e3c-4807-b578-bf114452e409",
+                "name": "Backlog",
+                "type": "backlog"
+              },
+              {
+                "id": "3062fde3-4e68-4803-bf8b-e4a24070a688",
+                "name": "In Progress",
+                "type": "started"
+              },
+              {
+                "id": "2757b2af-2d9d-4e8b-80ec-f72d7474c650",
+                "name": "Done",
+                "type": "completed"
+              }
+            ]
+          },
+          "projects": {
+            "nodes": [
+              {
+                "id": "b134d76c-ed41-432b-b88e-c0f91c9bdbd1",
+                "name": "Fase 6: MVP Completo"
+              },
+              {
+                "id": "60cfc2d1-deb5-4f8b-8d1c-c4097e19ad95",
+                "name": "Fase 5: Trust Scoring"
+              },
+              {
+                "id": "7b33613b-7117-496e-a3a2-ac136e969edd",
+                "name": "Fase 4: Frontend Admin"
+              },
+              {
+                "id": "3e890efb-7ea0-459a-ac34-51ddbbcf8ae8",
+                "name": "Fase 3: Frontend Candidato"
+              },
+              {
+                "id": "572eb18d-f398-4838-9e13-c1685f5de389",
+                "name": "Fase 2: Test de Raven"
+              },
+              {
+                "id": "b5479a6d-ba83-4f44-a059-63fcd5cc14d0",
+                "name": "Fase 1: Core Backend"
+              },
+              {
+                "id": "0e55363f-bd4f-42e2-b0f3-40cb5f812185",
+                "name": "Fase 0: Setup"
+              }
+            ]
+          }
+        },
+        {
+          "id": "bc042cff-dd58-4ca3-8da2-b504f6fba3d6",
+          "key": "BAT",
+          "name": "BattleRoom",
+          "states": {
+            "nodes": [
+              {
+                "id": "d0048bb2-4285-4f32-82f2-12761736e42a",
+                "name": "Done",
+                "type": "completed"
+              },
+              {
+                "id": "ba2d9ce4-fe2c-4b5d-8a0d-c5c56291be56",
+                "name": "Duplicate",
+                "type": "canceled"
+              },
+              {
+                "id": "787b2505-6082-441e-bcf1-a2bb1a4bde82",
+                "name": "Canceled",
+                "type": "canceled"
+              },
+              {
+                "id": "436c0f5b-bcc7-4bf5-9f9e-083789d202c8",
+                "name": "Todo",
+                "type": "unstarted"
+              },
+              {
+                "id": "3b1def45-a5a2-4fae-8444-212796c57b11",
+                "name": "In Progress",
+                "type": "started"
+              },
+              {
+                "id": "13b05244-987f-4834-8c03-f11df4ab2cf4",
+                "name": "Backlog",
+                "type": "backlog"
+              }
+            ]
+          },
+          "projects": {
+            "nodes": [
+              {
+                "id": "9850f294-8f47-48dd-ba6a-985ab64fe3a1",
+                "name": "Shared"
+              },
+              {
+                "id": "62069202-7625-4b96-bc29-be601fc684ca",
+                "name": "EoC Platform"
+              },
+              {
+                "id": "e74ab9c8-e4fd-41f4-9c6b-001934cf4bde",
+                "name": "EoC Content"
+              },
+              {
+                "id": "4b90addb-dba5-48f9-8085-a41c7c758417",
+                "name": "BR Core"
+              },
+              {
+                "id": "645bba25-89b5-4b09-a318-0902f7d8bd23",
+                "name": "v1.0: Mobile Companion"
+              },
+              {
+                "id": "cc316c16-1095-441c-abe3-b13975abe5db",
+                "name": "Beta: Windows & Linux"
+              },
+              {
+                "id": "567ac778-eb9a-4de7-815b-fd9fbd0bdf95",
+                "name": "Alpha: Auto Hot-Swap + Persistencia"
+              },
+              {
+                "id": "887ba2bf-4ec8-4393-9033-6ea70d95d169",
+                "name": "Alpha: Hot-Swap"
+              },
+              {
+                "id": "133decbf-d6ee-4aaa-a941-8d3b15a9be6d",
+                "name": "Alpha: Multi-Sesi\u00f3n"
+              },
+              {
+                "id": "457a2c4a-6ca9-4376-9257-9af565724404",
+                "name": "Dogfood v0.1"
+              }
+            ]
+          }
+        },
+        {
+          "id": "183f1712-4de4-44e5-be55-a38cd952284a",
+          "key": "PER",
+          "name": "Personal",
+          "states": {
+            "nodes": [
+              {
+                "id": "ed8145d4-4832-43ae-8a57-eeb724b7adb1",
+                "name": "Canceled",
+                "type": "canceled"
+              },
+              {
+                "id": "cf3badae-b65a-48b3-888d-babce8256cc3",
+                "name": "Todo",
+                "type": "unstarted"
+              },
+              {
+                "id": "7d335298-c8b1-4898-99d1-709cdb1b4ac3",
+                "name": "In Progress",
+                "type": "started"
+              },
+              {
+                "id": "65330365-e0b8-4591-a9e5-1e6ac1de611d",
+                "name": "Done",
+                "type": "completed"
+              },
+              {
+                "id": "5536fed8-1718-4c20-82c0-9af987c1b855",
+                "name": "Backlog",
+                "type": "backlog"
+              },
+              {
+                "id": "3f2665ba-807a-4ccd-a5ad-70dcc2d13fc5",
+                "name": "Duplicate",
+                "type": "canceled"
+              }
+            ]
+          },
+          "projects": {
+            "nodes": [
+              {
+                "id": "621299de-48bb-4b5d-91b1-d2de457c7fca",
+                "name": "Adversarial Programming"
+              }
+            ]
+          }
+        },
+        {
+          "id": "1ca961ef-e39f-4e2b-bba6-46d63da65759",
+          "key": "BLO",
+          "name": "Blog",
+          "states": {
+            "nodes": [
+              {
+                "id": "ed1d5f1c-81f4-47b2-82b5-f6361aec42ee",
+                "name": "Duplicate",
+                "type": "canceled"
+              },
+              {
+                "id": "be5b376d-fa3f-4d16-816f-f9dd117a9226",
+                "name": "Done",
+                "type": "completed"
+              },
+              {
+                "id": "b45250b1-79cd-43b9-95e0-b99cc9aec5f1",
+                "name": "In Progress",
+                "type": "started"
+              },
+              {
+                "id": "90c31d6f-0c48-4eec-84e7-35ddc2e80555",
+                "name": "Todo",
+                "type": "unstarted"
+              },
+              {
+                "id": "3f73ee04-f53e-444c-87a2-e6bde8ce54c7",
+                "name": "Canceled",
+                "type": "canceled"
+              },
+              {
+                "id": "297070c2-d593-4a4a-bf7a-95df985e1833",
+                "name": "Backlog",
+                "type": "backlog"
+              }
+            ]
+          },
+          "projects": {
+            "nodes": [
+              {
+                "id": "feb342d3-e969-4f45-96b1-1acaf2e61a3f",
+                "name": "Podcast International"
+              },
+              {
+                "id": "490a4360-9e17-4af4-9fe1-59055de9adee",
+                "name": "Personal Brand Relaunch"
+              },
+              {
+                "id": "581c176f-740b-433e-ae77-a93a7f84a941",
+                "name": "Blog v1.0"
+              }
+            ]
+          }
+        },
+        {
+          "id": "279813d5-cceb-416c-b116-faf2cb3aa310",
+          "key": "QIN",
+          "name": "acme",
+          "states": {
+            "nodes": [
+              {
+                "id": "f4bb70f9-7df5-40cf-b3f8-0d407fcef531",
+                "name": "Backlog",
+                "type": "backlog"
+              },
+              {
+                "id": "ed59e9cc-9691-4c24-8851-e7f28d0c3adf",
+                "name": "Canceled",
+                "type": "canceled"
+              },
+              {
+                "id": "b64d4388-d430-4623-a9af-aa87ee0c8a1c",
+                "name": "Todo",
+                "type": "unstarted"
+              },
+              {
+                "id": "9c31cab5-8404-4a6b-8a7a-f8a2ec6549f1",
+                "name": "In Progress",
+                "type": "started"
+              },
+              {
+                "id": "926a6a48-d580-4576-b158-d04a4548e2c9",
+                "name": "Duplicate",
+                "type": "canceled"
+              },
+              {
+                "id": "40591341-04e8-4733-aea2-e099c3a1bf4a",
+                "name": "Done",
+                "type": "completed"
+              }
+            ]
+          },
+          "projects": {
+            "nodes": [
+              {
+                "id": "50f9be24-c6fe-4d1d-a13a-37ace7f91e9e",
+                "name": "ETL v2.0"
+              },
+              {
+                "id": "8287e274-8f60-4072-a9d9-ef980c3c19e9",
+                "name": "Arquitectura de la Informaci\u00f3n"
+              },
+              {
+                "id": "557e936c-321d-4904-a83d-03d8084a76c1",
+                "name": "Sprint 2026-01-11: Imgproc Reliability"
+              },
+              {
+                "id": "76b9c63a-96fc-4019-9de5-16044bed3e0f",
+                "name": "Pipeline Refactoring 2025"
+              },
+              {
+                "id": "82507f03-0bd8-444e-ad25-17130cf0a6da",
+                "name": "SEO & Growth"
+              },
+              {
+                "id": "5bb18a29-10c3-471b-9d51-e4ec53e8e351",
+                "name": "Killer Features"
+              },
+              {
+                "id": "1d352c5b-5bc5-4517-b327-c0acb110e765",
+                "name": "ETL Pipeline"
+              },
+              {
+                "id": "a7198d37-020c-440e-88a8-86954d06e750",
+                "name": "MVP Launch"
+              }
+            ]
+          }
+        },
+        {
+          "id": "49b99768-6433-44f8-afe3-1edce3b659c0",
+          "key": "MOT",
+          "name": "MOT",
+          "states": {
+            "nodes": [
+              {
+                "id": "e0902af9-4251-4f15-9ef4-c7b163c432e6",
+                "name": "Duplicate",
+                "type": "canceled"
+              },
+              {
+                "id": "ca9f70f7-08b5-4496-bf1b-536a5f346c37",
+                "name": "Done",
+                "type": "completed"
+              },
+              {
+                "id": "c9bd3d86-8752-4f29-a1f6-8189d0b2c862",
+                "name": "Canceled",
+                "type": "canceled"
+              },
+              {
+                "id": "ab25a3c1-8b94-46db-aa33-1721b57b9568",
+                "name": "Backlog",
+                "type": "backlog"
+              },
+              {
+                "id": "a1a9b78f-2863-4065-b063-ce797aa30052",
+                "name": "Todo",
+                "type": "unstarted"
+              },
+              {
+                "id": "8f755847-7bc6-4bd5-88fd-1865311c683e",
+                "name": "In Progress",
+                "type": "started"
+              }
+            ]
+          },
+          "projects": {
+            "nodes": [
+              {
+                "id": "5d3ef039-1043-4cb6-a0e3-d4e9b2d7c90b",
+                "name": "Backlog Post v1.0"
+              },
+              {
+                "id": "71c660ab-cdaa-47a5-8497-a71700752d5a",
+                "name": "Fase 8: Web y Promoci\u00f3n"
+              },
+              {
+                "id": "b8e00ba4-e4ce-4441-aaa5-30b53173c9ab",
+                "name": "Fase 6: Documentaci\u00f3n y Ejemplos"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "issueLabels": {
+      "nodes": [
+        {
+          "id": "ce242b1e-d27d-46f7-9fc3-a96cf8a4b553",
+          "name": "lql"
+        },
+        {
+          "id": "d1aa78b6-971c-4328-af61-1811fd1cff1b",
+          "name": "nuevo-rumbo"
+        },
+        {
+          "id": "77c0445a-98a6-4f66-8251-9a5722e9093c",
+          "name": "p101"
+        },
+        {
+          "id": "9b564dba-86ff-4029-9069-c413dd803413",
+          "name": "etl"
+        },
+        {
+          "id": "d7d15661-1152-4946-8723-46a60c4af71a",
+          "name": "v2.0"
+        },
+        {
+          "id": "a59b0418-3f17-4e7b-81bc-eee3f9c8ee1d",
+          "name": "producci\u00f3n-video"
+        },
+        {
+          "id": "419884b1-ffa4-485a-af98-f3823ac8d483",
+          "name": "workflows"
+        },
+        {
+          "id": "b892c0f1-75a0-4e9b-a8df-729273d3ccfa",
+          "name": "podcast"
+        },
+        {
+          "id": "a1b36e3f-c368-453e-92ea-eef6fc27644f",
+          "name": "rrss"
+        },
+        {
+          "id": "7340fe2c-756c-4705-af57-27e65fd427b6",
+          "name": "blog"
+        },
+        {
+          "id": "00b06b6c-da58-4fa3-b37a-9dc9f54e0a20",
+          "name": "gesti\u00f3n"
+        },
+        {
+          "id": "3897ed7c-5fec-45fa-8aca-7d710a33cf8f",
+          "name": "aprendizaje"
+        },
+        {
+          "id": "1ac4abd7-aa76-4835-ba15-ed8478438a41",
+          "name": "carrera"
+        },
+        {
+          "id": "08f8cd73-7f60-4962-b319-c70d18289f4b",
+          "name": "claude-code"
+        },
+        {
+          "id": "71c83cb6-047e-4a66-ba3d-03095526ac4d",
+          "name": "autocorrect"
+        },
+        {
+          "id": "f84270fe-1831-475a-b35d-dfc001d344bc",
+          "name": "beacon"
+        },
+        {
+          "id": "19b98d40-b2f0-4dda-a460-d70e8e23ccaa",
+          "name": "rustyclaw"
+        },
+        {
+          "id": "de227b8f-195f-4321-aafa-d1dac2f72193",
+          "name": "qualitra"
+        },
+        {
+          "id": "d5914178-2535-4370-a8c9-9a7e8aa369c2",
+          "name": "acme"
+        },
+        {
+          "id": "92c1c467-0b87-41b8-9c7d-b8fede2777e7",
+          "name": "tokamak"
+        },
+        {
+          "id": "5a2994ee-9b05-4d2c-9004-294c170a4afb",
+          "name": "grokk"
+        },
+        {
+          "id": "603e4bdf-d08e-4f2c-b285-06e2afd0ac40",
+          "name": "owasp"
+        },
+        {
+          "id": "e25eae29-1bc4-4f18-8330-0290dce00cf9",
+          "name": "kc_raven"
+        },
+        {
+          "id": "32d8a122-e829-44da-91d9-49fdd8f82824",
+          "name": "etude"
+        },
+        {
+          "id": "10ca3a56-9df7-4b66-8a45-ff0bab27daed",
+          "name": "appstore"
+        },
+        {
+          "id": "ad0342dd-7bf8-4112-af8a-e006399ae819",
+          "name": "infra"
+        },
+        {
+          "id": "52d5b7be-dfe0-480d-a686-887ca20606c2",
+          "name": "port"
+        },
+        {
+          "id": "f1af5895-4e62-400b-87e8-a004563fe3b4",
+          "name": "blog-post"
+        },
+        {
+          "id": "8dcd7aa8-3a2c-4994-a5a0-8af6bfd28644",
+          "name": "benchmark"
+        },
+        {
+          "id": "f31cb124-abbb-4487-8e03-5c1f8a288e78",
+          "name": "hallucination"
+        },
+        {
+          "id": "80fdcd5a-14b8-4a7c-b484-5df317f0bc0c",
+          "name": "degoogle"
+        },
+        {
+          "id": "abaeae0a-614e-415d-a175-4e638c038604",
+          "name": "verification"
+        },
+        {
+          "id": "ed2596b8-8124-4637-9955-10b83a6d4b53",
+          "name": "architecture"
+        },
+        {
+          "id": "3f905020-5f82-4d7b-b443-bebfc60b20f6",
+          "name": "reference"
+        },
+        {
+          "id": "2a3b1f28-5900-4ce4-8d8a-1be9e49bcdba",
+          "name": "conecta4"
+        },
+        {
+          "id": "b2be6424-b6cb-4a06-8a4e-46f8e664ecc8",
+          "name": "validacion"
+        },
+        {
+          "id": "32eb5abc-5aa2-4784-bc81-1ba5440fd4d1",
+          "name": "migracion"
+        },
+        {
+          "id": "3246645a-7277-47ca-9b79-b751b0feb8dc",
+          "name": "cli"
+        },
+        {
+          "id": "1d29d706-9276-4170-a9d9-1ee06a2169bc",
+          "name": "pipeline"
+        },
+        {
+          "id": "9e7cf6c5-29b4-4ae9-8a98-ab096c90abcf",
+          "name": "ai-detection"
+        },
+        {
+          "id": "3993eef6-4799-4c79-8596-2da5711701d0",
+          "name": "llm"
+        },
+        {
+          "id": "0e0c5d44-826c-45a9-b857-928157b2b23f",
+          "name": "testing"
+        },
+        {
+          "id": "9b8c053e-8381-4fbc-bd28-85ac7f36469e",
+          "name": "core"
+        },
+        {
+          "id": "e4300ff4-ba76-4867-8de3-93dcfe6a3f9c",
+          "name": "fundamentos"
+        },
+        {
+          "id": "37632c12-5dd7-468d-9a06-582c392208da",
+          "name": "fase-8"
+        },
+        {
+          "id": "a14092db-8da7-4076-80b4-66737c906582",
+          "name": "fase-7"
+        },
+        {
+          "id": "f6021935-4ffa-4752-b871-ae0fcc9e3c60",
+          "name": "fase-6"
+        },
+        {
+          "id": "df549fa6-8f09-4742-a1e6-e2f863f8816c",
+          "name": "fase-5"
+        },
+        {
+          "id": "6f07cc81-5d8f-4376-bbc6-7689a02b89d0",
+          "name": "fase-4"
+        },
+        {
+          "id": "1537502e-8bca-4044-8884-798f7a3b01b1",
+          "name": "fase-3"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,132 @@
+{
+  "data": {
+    "issues": {
+      "nodes": [
+        {
+          "id": "b08bc552-aff8-4005-9c29-940f99d958e8",
+          "identifier": "TOOL-49",
+          "title": "Bater\u00eda de tests ERR-01..75: tests de regresi\u00f3n del PRD",
+          "priority": 1,
+          "state": {
+            "name": "Backlog",
+            "type": "backlog"
+          },
+          "labels": {
+            "nodes": [
+              {
+                "name": "lql"
+              }
+            ]
+          },
+          "project": null,
+          "team": {
+            "key": "TOOL"
+          },
+          "createdAt": "2026-03-25T21:51:40.177Z",
+          "dueDate": null,
+          "url": "https://linear.app/frr149/issue/TOOL-49/bateria-de-tests-err-0175-tests-de-regresion-del-prd"
+        },
+        {
+          "id": "92254b68-5790-414f-98ea-c067aa76c94a",
+          "identifier": "TOOL-48",
+          "title": "Comando raw: escape hatch para queries GraphQL directas",
+          "priority": 3,
+          "state": {
+            "name": "Backlog",
+            "type": "backlog"
+          },
+          "labels": {
+            "nodes": [
+              {
+                "name": "lql"
+              }
+            ]
+          },
+          "project": null,
+          "team": {
+            "key": "TOOL"
+          },
+          "createdAt": "2026-03-25T21:51:25.264Z",
+          "dueDate": null,
+          "url": "https://linear.app/frr149/issue/TOOL-48/comando-raw-escape-hatch-para-queries-graphql-directas"
+        },
+        {
+          "id": "599aee85-1635-4525-9d22-d2a963d87f7e",
+          "identifier": "TOOL-47",
+          "title": "Comando context: mostrar resoluci\u00f3n del cwd",
+          "priority": 3,
+          "state": {
+            "name": "Backlog",
+            "type": "backlog"
+          },
+          "labels": {
+            "nodes": [
+              {
+                "name": "lql"
+              }
+            ]
+          },
+          "project": null,
+          "team": {
+            "key": "TOOL"
+          },
+          "createdAt": "2026-03-25T21:51:19.298Z",
+          "dueDate": null,
+          "url": "https://linear.app/frr149/issue/TOOL-47/comando-context-mostrar-resolucion-del-cwd"
+        },
+        {
+          "id": "809726c8-7fdf-4f72-96ac-dadcc0c3136b",
+          "identifier": "TOOL-46",
+          "title": "Comando doctor: validar config, auth, teams y labels",
+          "priority": 2,
+          "state": {
+            "name": "Backlog",
+            "type": "backlog"
+          },
+          "labels": {
+            "nodes": [
+              {
+                "name": "lql"
+              }
+            ]
+          },
+          "project": null,
+          "team": {
+            "key": "TOOL"
+          },
+          "createdAt": "2026-03-25T21:51:14.794Z",
+          "dueDate": null,
+          "url": "https://linear.app/frr149/issue/TOOL-46/comando-doctor-validar-config-auth-teams-y-labels"
+        },
+        {
+          "id": "f8555ea6-83c6-4ce4-b6bc-f08f9bfd8272",
+          "identifier": "TOOL-45",
+          "title": "Comando labels: listar labels disponibles",
+          "priority": 2,
+          "state": {
+            "name": "Backlog",
+            "type": "backlog"
+          },
+          "labels": {
+            "nodes": [
+              {
+                "name": "lql"
+              }
+            ]
+          },
+          "project": null,
+          "team": {
+            "key": "TOOL"
+          },
+          "createdAt": "2026-03-25T21:51:08.994Z",
+          "dueDate": null,
+          "url": "https://linear.app/frr149/issue/TOOL-45/comando-labels-listar-labels-disponibles"
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": true,
+        "endCursor": "f8555ea6-83c6-4ce4-b6bc-f08f9bfd8272"
+      }
+    }
+  }
+}
