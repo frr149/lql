@@ -4,11 +4,18 @@ mod client;
 mod commands;
 mod config;
 mod format;
+mod middleware;
 mod queries;
 
 use std::process;
 
 fn main() {
+    let raw_args: Vec<String> = std::env::args().collect();
+    if let Err(msg) = middleware::check_common_mistakes(&raw_args) {
+        eprintln!("✗ {msg}");
+        process::exit(1);
+    }
+
     let args = cli::parse();
     let config = match config::load() {
         Ok(c) => c,
