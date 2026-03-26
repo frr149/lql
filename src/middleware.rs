@@ -1,8 +1,5 @@
-/// Middleware pre-clap: intercepta flags erróneos comunes y sugiere la alternativa correcta.
-/// Contrato de Sancho Panza: adapta lo no destructivo, rechaza lo destructivo, siempre avisa.
-
-/// Comprueba args comunes que clap rechazaría con un mensaje genérico inútil.
-/// Devuelve Err(mensaje útil) si detecta un flag conocido-erróneo.
+/// Pre-clap middleware: intercept common flag mistakes and suggest the correct alternative.
+/// Principle: adapt non-destructive input, reject destructive input, always inform.
 pub fn check_common_mistakes(args: &[String]) -> Result<(), String> {
     if args.len() < 2 {
         return Ok(());
@@ -14,19 +11,19 @@ pub fn check_common_mistakes(args: &[String]) -> Result<(), String> {
         match arg.as_str() {
             "--filter" => {
                 return Err(
-                    "--filter no existe. Para filtrar por estado: --state <estado>. Para buscar texto: lql search \"texto\""
+                    "--filter does not exist. To filter by state: --state <state>. To search: lql search \"text\""
                         .to_string(),
                 );
             }
             "--query" => {
-                let value = args.get(i + 1).map(|s| s.as_str()).unwrap_or("<texto>");
+                let value = args.get(i + 1).map(|s| s.as_str()).unwrap_or("<text>");
                 return Err(format!(
-                    "--query no existe en \"{subcommand}\". ¿Querías lql search \"{value}\"?"
+                    "--query does not exist in \"{subcommand}\". Did you mean: lql search \"{value}\"?"
                 ));
             }
             "--no-limit" => {
                 return Err(
-                    "--no-limit no existe. Usa --limit 0 o --all para todos los resultados."
+                    "--no-limit does not exist. Use --limit 0 or --all for all results."
                         .to_string(),
                 );
             }
@@ -35,19 +32,19 @@ pub fn check_common_mistakes(args: &[String]) -> Result<(), String> {
                 if subcommand == "update" {
                     let issue_id = args.get(2).map(|s| s.as_str()).unwrap_or("<FROM>");
                     return Err(format!(
-                        "--relates-to no existe en update. Usa: lql relate {issue_id} related {value}"
+                        "--relates-to does not exist in update. Use: lql relate {issue_id} related {value}"
                     ));
                 }
                 return Err(format!(
-                    "--relates-to no existe. Usa: lql relate <FROM> related {value}"
+                    "--relates-to does not exist. Use: lql relate <FROM> related {value}"
                 ));
             }
             "--comment" => {
                 if subcommand == "update" {
                     let issue_id = args.get(2).map(|s| s.as_str()).unwrap_or("<ISSUE>");
-                    let value = args.get(i + 1).map(|s| s.as_str()).unwrap_or("<texto>");
+                    let value = args.get(i + 1).map(|s| s.as_str()).unwrap_or("<text>");
                     return Err(format!(
-                        "--comment no existe en update. Usa: lql comment {issue_id} \"{value}\""
+                        "--comment does not exist in update. Use: lql comment {issue_id} \"{value}\""
                     ));
                 }
             }
@@ -66,34 +63,34 @@ mod tests {
         slice.iter().map(|s| s.to_string()).collect()
     }
 
-    // ERR-14: --filter → sugiere --state o search
+    // ERR-14: --filter → suggests --state or search
     #[test]
     fn test_filter_rejected_with_guidance() {
         let err = check_common_mistakes(&args(&["lql", "list", "--filter", "backlog"])).unwrap_err();
-        assert!(err.contains("--filter no existe"), "{err}");
+        assert!(err.contains("--filter does not exist"), "{err}");
         assert!(err.contains("--state"), "{err}");
         assert!(err.contains("lql search"), "{err}");
     }
 
-    // ERR-15: --query → sugiere lql search con el valor
+    // ERR-15: --query → suggests lql search with value
     #[test]
     fn test_query_rejected_with_guidance() {
         let err = check_common_mistakes(&args(&["lql", "list", "--query", "basedpyright"]))
             .unwrap_err();
-        assert!(err.contains("--query no existe"), "{err}");
+        assert!(err.contains("--query does not exist"), "{err}");
         assert!(err.contains("lql search \"basedpyright\""), "{err}");
     }
 
-    // ERR-16: --no-limit → sugiere --limit 0 o --all
+    // ERR-16: --no-limit → suggests --limit 0 or --all
     #[test]
     fn test_no_limit_rejected_with_guidance() {
         let err = check_common_mistakes(&args(&["lql", "list", "--no-limit"])).unwrap_err();
-        assert!(err.contains("--no-limit no existe"), "{err}");
+        assert!(err.contains("--no-limit does not exist"), "{err}");
         assert!(err.contains("--limit 0"), "{err}");
         assert!(err.contains("--all"), "{err}");
     }
 
-    // ERR-17: --relates-to en update → sugiere lql relate
+    // ERR-17: --relates-to in update → suggests lql relate
     #[test]
     fn test_relates_to_rejected_with_guidance() {
         let err = check_common_mistakes(&args(&[
@@ -104,11 +101,11 @@ mod tests {
             "PROD-588",
         ]))
         .unwrap_err();
-        assert!(err.contains("--relates-to no existe"), "{err}");
+        assert!(err.contains("--relates-to does not exist"), "{err}");
         assert!(err.contains("lql relate PROD-587 related PROD-588"), "{err}");
     }
 
-    // ERR-18: --comment en update → sugiere lql comment
+    // ERR-18: --comment in update → suggests lql comment
     #[test]
     fn test_comment_in_update_rejected_with_guidance() {
         let err = check_common_mistakes(&args(&[
@@ -116,11 +113,11 @@ mod tests {
             "update",
             "PROD-587",
             "--comment",
-            "texto",
+            "text",
         ]))
         .unwrap_err();
-        assert!(err.contains("--comment no existe en update"), "{err}");
-        assert!(err.contains("lql comment PROD-587 \"texto\""), "{err}");
+        assert!(err.contains("--comment does not exist in update"), "{err}");
+        assert!(err.contains("lql comment PROD-587 \"text\""), "{err}");
     }
 
     // Flags válidos no se interceptan
@@ -149,6 +146,6 @@ mod tests {
     fn test_relates_to_outside_update_rejected() {
         let err = check_common_mistakes(&args(&["lql", "list", "--relates-to", "PROD-1"]))
             .unwrap_err();
-        assert!(err.contains("--relates-to no existe"), "{err}");
+        assert!(err.contains("--relates-to does not exist"), "{err}");
     }
 }
