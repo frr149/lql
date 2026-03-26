@@ -272,6 +272,38 @@ pub fn format_view(issue: &Value) -> String {
     lines.join("\n")
 }
 
+/// Convierte una issue del API a un objeto plano para TOON (campos uniformes, sin nesting)
+pub fn format_issue_toon_obj(issue: &Value) -> Value {
+    let id = issue.get("identifier").and_then(|v| v.as_str()).unwrap_or("");
+    let state = issue.get("state").and_then(|s| s.get("name")).and_then(|n| n.as_str()).unwrap_or("");
+    let labels = extract_labels(issue).join(",");
+    let title = issue.get("title").and_then(|v| v.as_str()).unwrap_or("");
+    let priority = issue.get("priority").and_then(|p| p.as_u64()).unwrap_or(0);
+    let age = format_age(issue);
+    let due = format_due(issue);
+    let project = issue.get("project").and_then(|p| p.get("name")).and_then(|n| n.as_str()).unwrap_or("");
+
+    serde_json::json!({
+        "id": id,
+        "state": state,
+        "labels": labels,
+        "title": title,
+        "priority": priority,
+        "age": age,
+        "due": due,
+        "project": project,
+    })
+}
+
+/// Formatea un array de issues como TOON
+pub fn format_issues_toon(issues: &[&Value]) -> String {
+    let toon_issues: Vec<Value> = issues.iter().map(|i| format_issue_toon_obj(i)).collect();
+    match toon_format::encode_default(&toon_issues) {
+        Ok(toon) => toon,
+        Err(e) => format!("Error encoding TOON: {e}"),
+    }
+}
+
 // --- Helpers ---
 
 fn extract_labels(issue: &Value) -> Vec<String> {
@@ -426,5 +458,42 @@ mod tests {
     fn test_format_updated() {
         let output = format_updated("PROD-587", "Backlog", "Done");
         assert_eq!(output, "✓ PROD-587 Backlog → Done");
+    }
+}
+
+#[cfg(test)]
+mod toon_tests {
+    use super::*;
+
+    #[test]
+    fn test_toon_uniform_array() {
+        // Con campos uniformes (sin arrays anidados), TOON produce formato tabular
+        let issues = serde_json::json!([
+            {"id": "PROD-587", "state": "backlog", "labels": "acme", "title": "Importar sesiones", "age": "14d", "due": "overdue!"},
+            {"id": "PROD-515", "state": "started", "labels": "tokamak", "title": "Fix auth token", "age": "3d", "due": ""},
+            {"id": "PROD-529", "state": "backlog", "labels": "homelab", "title": "Mover media", "age": "4d", "due": "due:Mar 21"}
+        ]);
+        let toon = toon_format::encode_default(&issues).unwrap();
+        eprintln!("\n--- TOON UNIFORM ---\n{toon}\n--- END ---");
+        assert!(toon.contains("id"));
+        assert!(toon.contains("PROD-587"));
+    }
+
+    #[test]
+    fn test_toon_from_real_fixture() {
+        let path = format!("{}/tests/fixtures/list_tool_5.json", env!("CARGO_MANIFEST_DIR"));
+        let content = std::fs::read_to_string(&path).unwrap();
+        let fixture: serde_json::Value = serde_json::from_str(&content).unwrap();
+        let issues = fixture["data"]["issues"]["nodes"].as_array().unwrap();
+
+        // Convertir a formato TOON-friendly (campos planos uniformes)
+        let toon_issues: Vec<serde_json::Value> = issues.iter().map(|i| {
+            format_issue_toon_obj(i)
+        }).collect();
+
+        let toon = toon_format::encode_default(&toon_issues).unwrap();
+        eprintln!("\n--- TOON FROM FIXTURE ---\n{toon}\n--- END ---");
+        assert!(!toon.is_empty());
+        assert!(toon.contains("TOOL-"));
     }
 }
