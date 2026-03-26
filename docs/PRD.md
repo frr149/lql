@@ -16,15 +16,13 @@ Claude Code interactúa con Linear ~800 veces al mes a través de la CLI oficial
 
 Cada error cuesta ~2000 tokens (comando + error + retry). Estimación conservadora: **700K tokens/mes desperdiciados** en interacción con Linear.
 
-Además, existe `linear-curator`, un servicio nocturno que clasifica issues sin label usando un LLM y notifica por Telegram. Su problema principal: cuando la confianza es media (50–84%), envía un mensaje a Telegram diciendo "revisa manualmente" — pero no hay forma rápida de actuar desde ahí. El usuario tiene que abrir Linear, buscar la issue, y asignar el label a mano. Ese flujo está roto.
+Note: The issue curation/triage workflow (previously `linear-curator`) has been extracted to a [separate project](https://github.com/frr149/curator) that composes with lql.
 
 ## Solución
 
 `lql` ("Linear Query Language"): CLI en Rust que unifica tres cosas:
 
-1. **CLI interactiva** — wrapper sobre la API GraphQL con interfaz diseñada para LLMs
-2. **Curator nocturno** — absorbe linear-curator: clasifica issues sin label, aplica automático o pide review
-3. **Review rápido** — `lql review` permite resolver las issues pendientes de revisión desde la terminal, sin abrir Linear
+A CLI wrapper over the Linear GraphQL API with an interface designed for LLM agents and human power users.
 
 No usa la CLI oficial — va directo a GraphQL, eliminando toda la capa de errores.
 
@@ -51,13 +49,13 @@ JSONL es peor que compacto para el LLM porque las claves (`"state":`, `"labels":
 
 ### 2. Zero flags obligatorios
 
-| CLI oficial | lql | Por qué |
-|---|---|---|
-| `--sort priority` obligatorio | Default `priority` | El 100% de mis usos son por prioridad |
-| `--no-pager` obligatorio | Sin pager nunca | LLMs no tienen terminal |
-| `--all-assignees` obligatorio | Default all | Solo hay un usuario |
-| `--no-interactive` obligatorio | Nunca interactivo | LLMs no pueden responder prompts |
-| `--team X` obligatorio | Auto-detect por cwd | Ya tengo el context-map |
+| CLI oficial                    | lql                 | Por qué                               |
+| ------------------------------ | ------------------- | ------------------------------------- |
+| `--sort priority` obligatorio  | Default `priority`  | El 100% de mis usos son por prioridad |
+| `--no-pager` obligatorio       | Sin pager nunca     | LLMs no tienen terminal               |
+| `--all-assignees` obligatorio  | Default all         | Solo hay un usuario                   |
+| `--no-interactive` obligatorio | Nunca interactivo   | LLMs no pueden responder prompts      |
+| `--team X` obligatorio         | Auto-detect por cwd | Ya tengo el context-map               |
 
 Un `lql list` sin argumentos debe funcionar siempre.
 
@@ -65,20 +63,20 @@ Un `lql list` sin argumentos debe funcionar siempre.
 
 Normalizaciones automáticas en el parser de argumentos:
 
-| Input | Se normaliza a | Error actual |
-|---|---|---|
-| `--status Done` | `--state completed` | `Unknown option "--status"` |
-| `--state Todo` | `--state unstarted` | `must be of type "state"` |
-| `--state "In Progress"` | `--state started` | `must be of type "state"` |
-| `--state Done` | `--state completed` | `must be of type "state"` |
-| `--state cancelled` | `--state canceled` | doble L |
-| `--priority urgent` | `--priority 1` | `must be of type "number"` |
-| `--priority high` | `--priority 2` | ídem |
-| `--priority medium` | `--priority 3` | ídem |
-| `--priority low` | `--priority 4` | ídem |
-| `--no-pager` | (ignorado) | `Unknown option` |
-| `--no-interactive` | (ignorado) | `Unknown option` |
-| `--sort updated` | `--sort updatedAt` | `must be of type "sort"` |
+| Input                   | Se normaliza a      | Error actual                |
+| ----------------------- | ------------------- | --------------------------- |
+| `--status Done`         | `--state completed` | `Unknown option "--status"` |
+| `--state Todo`          | `--state unstarted` | `must be of type "state"`   |
+| `--state "In Progress"` | `--state started`   | `must be of type "state"`   |
+| `--state Done`          | `--state completed` | `must be of type "state"`   |
+| `--state cancelled`     | `--state canceled`  | doble L                     |
+| `--priority urgent`     | `--priority 1`      | `must be of type "number"`  |
+| `--priority high`       | `--priority 2`      | ídem                        |
+| `--priority medium`     | `--priority 3`      | ídem                        |
+| `--priority low`        | `--priority 4`      | ídem                        |
+| `--no-pager`            | (ignorado)          | `Unknown option`            |
+| `--no-interactive`      | (ignorado)          | `Unknown option`            |
+| `--sort updated`        | `--sort updatedAt`  | `must be of type "sort"`    |
 
 Cualquier flag desconocido genera un mensaje **útil**, no críptico:
 
@@ -127,21 +125,33 @@ PROD-529 [Backlog] wuwei — Mover media a Yottamaster (4d, due:Mar 21)
 
 **Estructura**: `ID [State] labels — Title (age, due)`
 
-| Elemento | Por qué ahí | Ejemplo |
-|---|---|---|
-| ID primero | El LLM lo necesita para el siguiente comando | `PROD-587` |
-| [State] en brackets | Delimitador visual no ambiguo, posición fija | `[Backlog]` |
-| Labels sin brackets | Separados por coma, no confundir con state | `qinqin,bug` |
-| Em-dash separador | No se confunde con guiones en títulos | `—` |
-| Metadata entre paréntesis | Age siempre, due solo si existe | `(14d, overdue!)` |
-| Footer | Conteo por estado — ahorra al LLM contar | `── 3 issues (...)` |
+| Elemento                  | Por qué ahí                                  | Ejemplo             |
+| ------------------------- | -------------------------------------------- | ------------------- |
+| ID primero                | El LLM lo necesita para el siguiente comando | `PROD-587`          |
+| [State] en brackets       | Delimitador visual no ambiguo, posición fija | `[Backlog]`         |
+| Labels sin brackets       | Separados por coma, no confundir con state   | `qinqin,bug`        |
+| Em-dash separador         | No se confunde con guiones en títulos        | `—`                 |
+| Metadata entre paréntesis | Age siempre, due solo si existe              | `(14d, overdue!)`   |
+| Footer                    | Conteo por estado — ahorra al LLM contar     | `── 3 issues (...)` |
 
 **Por qué no TSV**: el LLM lee texto, no tablas. Títulos largos rompen columnas fijas.
 
 **`--json`** (solo para scripts):
 
 ```jsonl
-{"id":"PROD-587","state":"backlog","labels":["qinqin"],"title":"Importar sesiones desde backup del NAS","age_days":14,"due":"2026-03-11","overdue":true,"project":"Qinqin","priority":2}
+{
+  "id": "PROD-587",
+  "state": "backlog",
+  "labels": [
+    "qinqin"
+  ],
+  "title": "Importar sesiones desde backup del NAS",
+  "age_days": 14,
+  "due": "2026-03-11",
+  "overdue": true,
+  "project": "Qinqin",
+  "priority": 2
+}
 ```
 
 ### `create` — confirmación + URL
@@ -175,16 +185,6 @@ PROD-587 [Backlog] P2 qinqin — Importar sesiones desde backup del NAS
 ```
 
 Header = misma línea que `list` + prioridad. Descripción sin truncar (el LLM pidió `view` para leerla). Sin URL — el patrón es fijo: `linear.app/frr149/issue/{ID}`.
-
-### `summary` / `triage` — secciones con alertas
-
-```
-PROD — 23 active (8 backlog, 12 todo, 3 in-progress)
-  ⚠ 3 overdue: PROD-587 (14d), PROD-513 (10d), PROD-514 (10d)
-  ⚠ 2 sin project: PROD-529, PROD-527
-```
-
-Headers por team, alertas indentadas con `⚠`. El LLM escanea los `⚠` para saber dónde actuar.
 
 ### Errores — accionables, con sugerencia
 
@@ -397,140 +397,9 @@ lql raw --file query.graphql --vars-file vars.json
 
 **No incluye**: introspección de schema, autocompletado de campos, formateo del resultado. Es un pipe directo al endpoint GraphQL con auth y serde.
 
-### `lql curate` — Clasificar issues sin label (absorbe linear-curator)
+### ~~Curator commands (extracted to separate project)~~
 
-```bash
-# Ejecutar clasificación (lo que hacía linear-curator cada noche)
-lql curate
-
-# Dry-run: solo mostrar qué haría, sin aplicar nada
-lql curate --dry-run
-
-# Ajustar umbrales
-lql curate --auto-threshold 0.90 --review-threshold 0.60
-
-# Limitar scope
-lql curate --team PROD --limit 20
-```
-
-**Pipeline** (absorbe linear-curator):
-
-1. Fetch labels de taxonomía (workspace-level, no genéricos)
-2. Fetch issues activas sin ningún label de taxonomía
-3. Cargar últimas 20 correcciones de `corrections.jsonl` (few-shot)
-4. Clasificar en batches de 20 con LLM (Claude Haiku via OpenRouter, temperature=0)
-5. Separar por confianza:
-   - `≥ auto_threshold` (default 0.85): aplicar label automáticamente
-   - `≥ review_threshold` (default 0.50): dejar comentario en la issue con la sugerencia
-   - `< review_threshold`: skip
-6. Aplicar labels vía API (additive, no borra existentes)
-7. Dejar comentario `🏷 Curator suggestion: label (N%) — "razón"` en issues de review
-8. Notificar por Telegram (digest con auto/review/skip counts)
-
-**Output**:
-
-```
-Curating 12 unlabeled issues...
-  ✓ PROD-612 → tokamak (92%)
-  ✓ PROD-615 → qinqin (88%)
-  ? PROD-618 → blog? (71%) — saved for review
-  ⏭ PROD-620 — skipped (38%)
-── Auto: 8 | Review: 3 | Skip: 1
-```
-
-### `lql review` — Resolver issues pendientes de revisión
-
-Este es el comando que falta en linear-curator y que hace inútil el mensaje de Telegram actual.
-
-**Cómo encuentra los pendientes**: busca issues activas sin label de taxonomía que tengan un comentario `🏷 Curator suggestion:` (dejado por `curate`). No lee ningún fichero local — Linear es la fuente de verdad.
-
-```bash
-# Ver pendientes de revisión
-lql review
-
-# Aplicar la sugerencia del curator
-lql review PROD-618 --accept
-
-# Corregir la sugerencia (asignar label diferente)
-lql review PROD-618 --label wuwei
-
-# Descartar (no necesita label de taxonomía)
-lql review PROD-618 --skip
-
-# Procesar todos los pendientes de golpe (modo LLM)
-lql review --accept-all
-lql review --accept-all --min-confidence 0.75
-```
-
-**Output de `lql review`** (sin argumentos):
-
-```
-3 issues pendientes de revisión:
-
-1. PROD-618 [Backlog] "Configurar cron nocturno en wuwei"
-   Sugerencia: blog (71%) — "mentions pipeline and cron"
-
-2. PROD-621 [Todo] "Mover media y downloads de SSD a Yottamaster"
-   Sugerencia: wuwei (65%) — "hardware infrastructure"
-
-3. CONT-55 [Todo] "Registrarse en Metricool + conectar analytics"
-   Sugerencia: rrss (58%) — "social media analytics tool"
-```
-
-**Feedback loop automático**: Cuando se corrige una sugerencia (`--label wuwei` distinto al sugerido `blog`), se escribe en `corrections.jsonl`:
-
-```jsonl
-{"issue":"PROD-618","title":"Configurar cron nocturno en wuwei","curator_said":"blog","user_corrected":"wuwei","reason":"auto","timestamp":"2026-03-25T10:30:00Z"}
-```
-
-El campo `reason` es `"auto"` por defecto. Se puede añadir: `lql review PROD-618 --label wuwei --reason "infra task, not content"`.
-
-**Concurrencia con `curate`**: no hay fichero compartido. `curate` escribe comentarios en Linear, `review` lee comentarios de Linear y aplica labels vía API. Si ambos corren a la vez, el peor caso es que `curate` deje un comentario en una issue que `review` acaba de resolver — el comentario queda como audit trail inofensivo, y en la siguiente ejecución de `review` esa issue ya no aparece (ya tiene label).
-
-**Integración Telegram**: El digest nocturno cambia de formato:
-
-```
-Antes (inútil):
-  ❓ PROD-618: Configurar cron nocturno... → blog? (71%)
-  (el usuario tiene que abrir Linear y buscar la issue)
-
-Después (accionable):
-  ❓ 3 issues pendientes de review
-  → lql review (o lql review --accept-all --min-confidence 0.75)
-```
-
-El mensaje de Telegram ya no intenta ser la interfaz de review — solo avisa de que hay pendientes y dice qué comando ejecutar.
-
-### `lql triage` — Vista unificada de higiene
-
-Combina `summary` + `review` + detección de problemas:
-
-```bash
-lql triage
-lql triage --all-teams
-```
-
-**Output**:
-
-```
-═══ Linear Triage Report ═══
-
-OVERDUE (5):
-  PROD-587 [Backlog] qinqin — Importar sesiones desde backup (14d overdue)
-  CONT-4  [Backlog] — Blindar LinkedIn contra spam (34d overdue!)
-  ...
-
-NEEDS REVIEW (3):
-  PROD-618 → blog? (71%) | PROD-621 → wuwei? (65%) | CONT-55 → rrss? (58%)
-  → lql review
-
-HYGIENE:
-  ⚠ 2 issues sin project: PROD-529, PROD-527
-  ⚠ 1 issue sin label: PROD-530
-  ⚠ 3 issues en Backlog >30d sin actividad: CONT-4, CONT-9, CONT-16
-
-── Active: 44 | Overdue: 5 | Review: 3 | Stale: 3
-```
+> `curate`, `review`, `triage`, and `summary` have been extracted to [curator](https://github.com/frr149/curator), a separate Python project that composes with lql via `lql list --no-label --json` and `lql update --label`. This follows Unix philosophy: lql handles Linear API interaction, curator handles LLM classification and Telegram review UX. See the [curator PRD](https://github.com/frr149/curator/blob/main/docs/PRD.md).
 
 ## Configuración
 
@@ -584,45 +453,31 @@ limit = 50
 "--relates-to"     = "--relate"
 "--comment"        = "→ lql comment"
 
-[curator]
-# LLM para clasificación automática de labels
-llm_base_url = "https://openrouter.ai/api/v1"
-llm_model = "anthropic/claude-haiku-4-5-20251001"
-llm_api_key_ref = "op://FRR DEV/OpenRouter Blog/api-key"
-auto_threshold = 0.85       # >= esto: aplicar automáticamente
-review_threshold = 0.50     # >= esto: guardar para review
-batch_size = 20             # issues por batch LLM
-generic_labels = ["Bug", "Feature", "Improvement"]  # no cuentan como taxonomía
-
-[telegram]
-bot_token_ref = "op://FRR DEV/Telegram Alerts Bot/bot-token"
-chat_id_ref = "op://FRR DEV/Telegram Bot/group-id"
+# [curator] and [telegram] config moved to curator project
+# See: https://github.com/frr149/curator
 ```
 
 ## Stack técnico
 
 - **Rust** (cargo project, edición 2024)
 - **clap** (derive) para CLI — flag aliases en compile time (`#[arg(alias = "status")]`)
-- **reqwest** (blocking) para HTTP — Linear API, OpenRouter, Telegram
+- **reqwest** (blocking, rustls-tls) para HTTP — Linear API
 - **serde** + **serde_json** para JSON — escapado correcto by construction, el problema #1 (80+ reintentos) es imposible
 - **chrono** para fechas — due dates relativos (`--due friday`, `--due +7d`), cálculo de age/overdue
 - **toml** para config
-- **fs2** para file locking (`corrections.jsonl`)
 - **Auth**: `op read` vía `std::process::Command` (usa el wrapper cache de `~/.local/bin/op`)
-- **LLM** (solo para `curate`): POST a OpenRouter (API OpenAI-compatible), response parseada con serde
-- **Telegram** (solo para `curate`): POST a Bot API, sin librería
 - **Sin async**: todo blocking. Un CLI no necesita concurrencia interna.
 
 ### Por qué Rust y no Python
 
-| | Python | Rust |
-|---|---|---|
-| **Startup** | ~50ms (import overhead) | <1ms |
-| **Deploy** | Clonar repo + `uv sync` + `.venv` | Copiar un binario |
-| **JSON escaping** | `json.dumps` (correcto pero runtime) | `serde_json::to_value` (correcto by construction) |
-| **Flag validation** | Runtime (click) | Compile time (clap derive) |
-| **Cross-compile** | No aplica | `cargo build --target x86_64-unknown-linux-musl` desde Mac → binario estático para wuwei |
-| **Dependencies en wuwei** | Python 3.12+, uv, venv, git clone | Nada. Un binario estático. |
+|                           | Python                               | Rust                                                                                     |
+| ------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------- |
+| **Startup**               | ~50ms (import overhead)              | <1ms                                                                                     |
+| **Deploy**                | Clonar repo + `uv sync` + `.venv`    | Copiar un binario                                                                        |
+| **JSON escaping**         | `json.dumps` (correcto pero runtime) | `serde_json::to_value` (correcto by construction)                                        |
+| **Flag validation**       | Runtime (click)                      | Compile time (clap derive)                                                               |
+| **Cross-compile**         | No aplica                            | `cargo build --target x86_64-unknown-linux-musl` desde Mac → binario estático para wuwei |
+| **Dependencies en wuwei** | Python 3.12+, uv, venv, git clone    | Nada. Un binario estático.                                                               |
 
 ### Escapado seguro — la solución al problema #1
 
@@ -665,7 +520,14 @@ Esto elimina el 100% de los errores de escapado. No hay interpolación de string
 Un solo fichero local. No es estado de la app — es un dataset de entrenamiento para el prompt del clasificador LLM.
 
 ```jsonl
-{"issue":"PROD-618","title":"Configurar cron nocturno en wuwei","curator_said":"blog","user_corrected":"wuwei","reason":"infra task, not content","timestamp":"2026-03-10T..."}
+{
+  "issue": "PROD-618",
+  "title": "Configurar cron nocturno en wuwei",
+  "curator_said": "blog",
+  "user_corrected": "wuwei",
+  "reason": "infra task, not content",
+  "timestamp": "2026-03-10T..."
+}
 ```
 
 - **Quién escribe**: `review` (append con `fs2::FileExt::lock_exclusive` cuando el usuario corrige una sugerencia)
@@ -703,7 +565,6 @@ Múltiples agentes (Claude Code, Codex, otros) pueden usar `lql` concurrentement
 - **Rate limit compartido** → todos usan la misma API key (~1500 req/h). Con 2-3 agentes activos no es un problema, pero 429 se maneja con retry + exponential backoff (2s, 4s, 8s, max 3 retries)
 - **Pending reviews en Linear** (comentarios) → `curate` escribe comentarios, `review` los lee. Concurrencia resuelta por Linear server-side. Sin fichero compartido.
 - **`corrections.jsonl`** (único fichero local) → append-only por `review`, snapshot-read por `curate`. Semántica de log, sin conflicto. `fcntl.flock` para appends por higiene.
-
 
 ## Instalación
 
@@ -772,6 +633,7 @@ El role de Ansible se simplifica: ya no clona repos ni instala Python. Solo copi
 
 ```markdown
 ## Linear
+
 - **CLI**: `lql` (wrapper custom). NUNCA usar `linear` (CLI oficial) ni MCP ni curl a api.linear.app.
 - Para gestionar issues, usar el skill `/issues` que delega en `lql`.
 ```
@@ -807,16 +669,16 @@ linear-curator queda absorbido. El repo se archiva. El role de Ansible se actual
 
 ## Métricas de éxito
 
-| Métrica | Antes | Objetivo |
-|---|---|---|
-| Errores Linear por sesión | ~3 | 0 |
-| Reintentos por error | ~2.5 | 0 |
-| Tokens por `list` de 50 issues | ~7500 | ~2000 |
-| Fallbacks a GraphQL manual | ~30% de sesiones | 0% |
-| Labels inventados | ~10/mes | 0 |
-| Uso de MCP Linear | ~20/mes | 0 |
-| Issues sin label (curator pending) resueltas | días | minutos |
-| Servicios nocturnos desplegados | 2 (memento + curator) | 1 (lql curate) |
+| Métrica                                      | Antes                 | Objetivo       |
+| -------------------------------------------- | --------------------- | -------------- |
+| Errores Linear por sesión                    | ~3                    | 0              |
+| Reintentos por error                         | ~2.5                  | 0              |
+| Tokens por `list` de 50 issues               | ~7500                 | ~2000          |
+| Fallbacks a GraphQL manual                   | ~30% de sesiones      | 0%             |
+| Labels inventados                            | ~10/mes               | 0              |
+| Uso de MCP Linear                            | ~20/mes               | 0              |
+| Issues sin label (curator pending) resueltas | días                  | minutos        |
+| Servicios nocturnos desplegados              | 2 (memento + curator) | 1 (lql curate) |
 
 ## Estructura del proyecto
 
@@ -870,23 +732,7 @@ lql/
 - `lql doctor` — validar config, auth, teams, labels
 - Tests de formato y normalización
 
-### Fase 2 — Curator + Review
-
-- `curate` — absorbe pipeline de linear-curator (LLM classification via OpenRouter)
-- `review` — resolver pendientes leyendo comentarios del curator en Linear
-- `corrections.jsonl` (feedback loop: review → curate)
-- `summary`, `triage`
-- Notificación Telegram con mensaje accionable
-- Tests del clasificador con fixtures
-
-### Fase 3 — Integración + migración
-
-- Cross-compile para wuwei (musl static)
-- Actualizar skill `/issues` para usar `lql`
-- Actualizar `memento` para delegar en `lql triage`
-- Actualizar role Ansible: binario + config + timer (sin git clone, sin Python)
-- Push a git.frr.dev, deploy en wuwei
-- Archivar repo `linear-curator`
+**Note:** Curator, review, triage, and summary functionality has been extracted to a separate project: [curator](https://github.com/frr149/curator). lql provides the CLI interface that curator composes with via `lql list --json` and `lql update`.
 
 ## Recomendaciones de producto y recorte
 
@@ -1017,54 +863,9 @@ Cubrir el bucle operativo principal:
 
 Se puede cambiar el skill `/issues` para usar `lql` por defecto en trabajo diario sin recurrir a `linear` CLI ni a GraphQL manual en los casos habituales.
 
-### Propuesta de versión 2.0
+### Extracted: curator project
 
-La v2.0 debería empezar cuando el core CLI ya esté estable y usado de verdad, no en paralelo. Su foco ya no sería “reemplazar la CLI oficial”, sino “cerrar el workflow completo de curación y triage”.
-
-#### Objetivo de la v2.0
-
-Convertir `lql` en la capa única de operación sobre Linear para:
-
-- trabajo diario manual
-- consumo por agentes
-- curación nocturna
-- higiene operativa transversal
-
-#### Alcance de la v2.0
-
-- `curate`
-- `review`
-- `summary`
-- `triage`
-- comentarios estructurados de suggestion/review
-- `corrections.jsonl`
-- integración Telegram
-- integración con `memento`
-- despliegue en `wuwei`
-- archivado de `linear-curator`
-- `--create-label` (con `--team` obligatorio, solo labels team-specific)
-
-##### Test v2.0: ERR-28
-
-```
-ERR-28: --create-label crea label y asigna
-  Input:  lql create "Fix bug" --label newlabel --create-label --team PROD
-  Expect: crea label "newlabel" en team PROD, luego crea issue con él
-```
-
-#### Condiciones previas para arrancar v2.0
-
-- el core CLI ya resuelve bien los comandos diarios
-- el `context-map` ya está afinado con uso real
-- el output compacto ha demostrado ser estable para agentes
-- la resolución de labels/projects ya no produce ruido operacional
-
-#### Qué no meter todavía en v2.0
-
-- cache persistente de metadata
-- sincronización bidireccional compleja con sistemas externos
-- personalización excesiva del output por usuario
-- heurísticas demasiado “mágicas” que compliquen el modelo mental del CLI
+The v2.0 scope (curate, review, triage, summary, Telegram, corrections.jsonl) has been extracted to [curator](https://github.com/frr149/curator), a separate Python project. This follows Unix philosophy: lql handles Linear API interaction, curator handles LLM classification and user review UX. lql's scope is the core CLI — it does one thing well.
 
 ## Edge cases detectados en la auditoría
 
@@ -1105,39 +906,39 @@ Razón: 1 error real por `Project "qinqin" not found. Similar projects: Qinqin`.
 
 ## Easter eggs 🦀
 
-| Trigger | Output |
-|---|---|
-| `lql --version` | `lql 0.1.0 🦀 "Rewritten in Rust, obviously"` |
-| `lql doctor` (todo OK) | `✓ All checks passed. Ferris approves. 🦀` |
-| `lql doctor` (auth falla) | `✗ API key not found. Ferris is sad. 🦀💧` |
-| `lql curate` (0 unlabeled) | `No unlabeled issues. The crab rests. 🦀` |
-| `lql --riir` | `Already done. You're welcome. 🦀` |
-| `lql` (sin subcomando) | Help text con `🦀 Linear Query Language — because everything must be rewritten in Rust` |
+| Trigger                    | Output                                                                                  |
+| -------------------------- | --------------------------------------------------------------------------------------- |
+| `lql --version`            | `lql 0.1.0 🦀 "Rewritten in Rust, obviously"`                                           |
+| `lql doctor` (todo OK)     | `✓ All checks passed. Ferris approves. 🦀`                                              |
+| `lql doctor` (auth falla)  | `✗ API key not found. Ferris is sad. 🦀💧`                                              |
+| `lql curate` (0 unlabeled) | `No unlabeled issues. The crab rests. 🦀`                                               |
+| `lql --riir`               | `Already done. You're welcome. 🦀`                                                      |
+| `lql` (sin subcomando)     | Help text con `🦀 Linear Query Language — because everything must be rewritten in Rust` |
 
 ## Apéndice: Catálogo completo de errores que lql elimina
 
-| # | Error | Ocurrencias | Cómo lo elimina lql |
-|---|---|---|---|
-| 1 | `--sort` olvidado | 40+ | Default `priority` |
-| 2 | `--no-pager` en create/update | 15+ | Sin pager nunca |
-| 3 | `--status` vs `--state` | 11+ | Flag alias automático |
-| 4 | `Todo`/`Done`/`In Progress` | 12+ | State alias automático |
-| 5 | `--priority urgent` (string) | 17+ | Priority alias automático |
-| 6 | `--no-interactive` ausente | 64 | Nunca interactivo |
-| 7 | `--comment` en update | 11 | Subcomando `comment` separado |
-| 8 | Labels inventados | 10+ | `labels` cmd + validación |
-| 9 | Team retirado (TOK) | 97+ | Context-map, no teams retirados |
-| 10 | Project IDs inventados | 9 | Project por nombre, UUID resuelto |
-| 11 | Escapado JSON/GraphQL | 25+ (80+ retries) | Variables GraphQL |
-| 12 | `KeyError: 'data'` | 15+ | Error handling en respuesta |
-| 13 | Auth sin `&&` | 5+ | httpx directo, no shell piping |
-| 14 | jq parsing failures | 6+ | Sin jq, parseo nativo |
-| 15 | Campos GraphQL inventados | 10+ | Queries fijas y testeadas |
-| 16 | MCP Linear | 171 | No existe, solo lql |
-| 17 | Cascada parallel calls | 4+ | Operaciones atómicas |
-| 18 | `--team` olvidado | 5 | Auto-detect por cwd |
-| 19 | `--filter`/`--query`/`--label` en list | 6 | Flags nativos |
-| 20 | `linear search` (no existe) | 1 | `lql search` |
+| #   | Error                                  | Ocurrencias       | Cómo lo elimina lql               |
+| --- | -------------------------------------- | ----------------- | --------------------------------- |
+| 1   | `--sort` olvidado                      | 40+               | Default `priority`                |
+| 2   | `--no-pager` en create/update          | 15+               | Sin pager nunca                   |
+| 3   | `--status` vs `--state`                | 11+               | Flag alias automático             |
+| 4   | `Todo`/`Done`/`In Progress`            | 12+               | State alias automático            |
+| 5   | `--priority urgent` (string)           | 17+               | Priority alias automático         |
+| 6   | `--no-interactive` ausente             | 64                | Nunca interactivo                 |
+| 7   | `--comment` en update                  | 11                | Subcomando `comment` separado     |
+| 8   | Labels inventados                      | 10+               | `labels` cmd + validación         |
+| 9   | Team retirado (TOK)                    | 97+               | Context-map, no teams retirados   |
+| 10  | Project IDs inventados                 | 9                 | Project por nombre, UUID resuelto |
+| 11  | Escapado JSON/GraphQL                  | 25+ (80+ retries) | Variables GraphQL                 |
+| 12  | `KeyError: 'data'`                     | 15+               | Error handling en respuesta       |
+| 13  | Auth sin `&&`                          | 5+                | httpx directo, no shell piping    |
+| 14  | jq parsing failures                    | 6+                | Sin jq, parseo nativo             |
+| 15  | Campos GraphQL inventados              | 10+               | Queries fijas y testeadas         |
+| 16  | MCP Linear                             | 171               | No existe, solo lql               |
+| 17  | Cascada parallel calls                 | 4+                | Operaciones atómicas              |
+| 18  | `--team` olvidado                      | 5                 | Auto-detect por cwd               |
+| 19  | `--filter`/`--query`/`--label` en list | 6                 | Flags nativos                     |
+| 20  | `linear search` (no existe)            | 1                 | `lql search`                      |
 
 **Total eliminado: 500+ errores/mes → 0**
 
