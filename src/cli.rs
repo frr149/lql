@@ -245,6 +245,30 @@ pub struct RelateOpts {
 
 #[derive(Parser, Debug)]
 pub struct LabelsOpts {
+    #[command(subcommand)]
+    pub action: Option<LabelsAction>,
+
+    /// Filter by team (for list)
+    #[arg(long)]
+    pub team: Option<String>,
+
+    /// Output as JSON
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum LabelsAction {
+    /// List available labels (default)
+    List(LabelsListOpts),
+    /// Create a new label
+    Create(LabelsCreateOpts),
+    /// Delete a label
+    Delete(LabelsDeleteOpts),
+}
+
+#[derive(Parser, Debug)]
+pub struct LabelsListOpts {
     /// Filter by team
     #[arg(long)]
     pub team: Option<String>,
@@ -252,6 +276,30 @@ pub struct LabelsOpts {
     /// Output as JSON
     #[arg(long)]
     pub json: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct LabelsCreateOpts {
+    /// Label name
+    pub name: String,
+
+    /// Color (hex, e.g. "#ff0000")
+    #[arg(long)]
+    pub color: Option<String>,
+
+    /// Assign to team (workspace-level if omitted)
+    #[arg(long)]
+    pub team: Option<String>,
+
+    /// Output as JSON
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct LabelsDeleteOpts {
+    /// Label name
+    pub name: String,
 }
 
 #[derive(Parser, Debug)]
@@ -643,6 +691,108 @@ mod tests {
         assert_eq!(normalize_priority("Urgent", &priority_aliases()), Ok(1));
         assert_eq!(normalize_priority("HIGH", &priority_aliases()), Ok(2));
         assert_eq!(normalize_priority("MEDIUM", &priority_aliases()), Ok(3));
+    }
+
+    // --- Labels subcommands ---
+
+    // labels sin subcomando = list (backward compatible)
+    #[test]
+    fn test_labels_no_subcommand() {
+        let cli = Cli::try_parse_from(["lql", "labels"]).unwrap();
+        if let Command::Labels(opts) = cli.command {
+            assert!(opts.action.is_none());
+        } else {
+            panic!("Expected Labels command");
+        }
+    }
+
+    // labels list explícito
+    #[test]
+    fn test_labels_list_subcommand() {
+        let cli = Cli::try_parse_from(["lql", "labels", "list"]).unwrap();
+        if let Command::Labels(opts) = cli.command {
+            assert!(matches!(opts.action, Some(LabelsAction::List(_))));
+        } else {
+            panic!("Expected Labels command");
+        }
+    }
+
+    // labels list --json
+    #[test]
+    fn test_labels_list_json() {
+        let cli = Cli::try_parse_from(["lql", "labels", "list", "--json"]).unwrap();
+        if let Command::Labels(opts) = cli.command {
+            if let Some(LabelsAction::List(list_opts)) = opts.action {
+                assert!(list_opts.json);
+            } else {
+                panic!("Expected List subcommand");
+            }
+        } else {
+            panic!("Expected Labels command");
+        }
+    }
+
+    // labels --json (en root, backward compatible)
+    #[test]
+    fn test_labels_root_json_flag() {
+        let cli = Cli::try_parse_from(["lql", "labels", "--json"]).unwrap();
+        if let Command::Labels(opts) = cli.command {
+            assert!(opts.json);
+        } else {
+            panic!("Expected Labels command");
+        }
+    }
+
+    // labels create
+    #[test]
+    fn test_labels_create() {
+        let cli = Cli::try_parse_from(["lql", "labels", "create", "bug"]).unwrap();
+        if let Command::Labels(opts) = cli.command {
+            if let Some(LabelsAction::Create(create_opts)) = opts.action {
+                assert_eq!(create_opts.name, "bug");
+                assert!(create_opts.color.is_none());
+                assert!(create_opts.team.is_none());
+            } else {
+                panic!("Expected Create subcommand");
+            }
+        } else {
+            panic!("Expected Labels command");
+        }
+    }
+
+    // labels create con --color y --team
+    #[test]
+    fn test_labels_create_with_options() {
+        let cli = Cli::try_parse_from([
+            "lql", "labels", "create", "bug", "--color", "#ff0000", "--team", "PROD",
+        ])
+        .unwrap();
+        if let Command::Labels(opts) = cli.command {
+            if let Some(LabelsAction::Create(create_opts)) = opts.action {
+                assert_eq!(create_opts.name, "bug");
+                assert_eq!(create_opts.color.as_deref(), Some("#ff0000"));
+                assert_eq!(create_opts.team.as_deref(), Some("PROD"));
+            } else {
+                panic!("Expected Create subcommand");
+            }
+        } else {
+            panic!("Expected Labels command");
+        }
+    }
+
+    // labels delete
+    #[test]
+    fn test_labels_delete() {
+        let cli = Cli::try_parse_from(["lql", "labels", "delete", "bug"]).unwrap();
+        if let Command::Labels(opts) = cli.command {
+            if let Some(LabelsAction::Delete(delete_opts)) = opts.action {
+                assert_eq!(delete_opts.name, "bug");
+            } else {
+                panic!("Expected Delete subcommand");
+            }
+        } else {
+            panic!("Expected Labels command");
+        }
     }
 
     // ERR-13 variantes

@@ -213,6 +213,29 @@ mutation CreateRelation($input: IssueRelationCreateInput!) {
 }
 "#;
 
+/// Crear label
+pub const LABEL_CREATE_MUTATION: &str = r#"
+mutation CreateLabel($input: IssueLabelCreateInput!) {
+  issueLabelCreate(input: $input) {
+    success
+    issueLabel {
+      id
+      name
+      color
+    }
+  }
+}
+"#;
+
+/// Borrar label
+pub const LABEL_DELETE_MUTATION: &str = r#"
+mutation DeleteLabel($id: String!) {
+  issueLabelDelete(id: $id) {
+    success
+  }
+}
+"#;
+
 /// Viewer (para doctor)
 pub const VIEWER_QUERY: &str = r#"
 {
