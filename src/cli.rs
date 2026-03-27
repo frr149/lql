@@ -27,7 +27,7 @@ pub enum Command {
     Comment(CommentOpts),
     /// Create a relation between issues
     Relate(RelateOpts),
-    /// List available labels
+    /// Manage labels (list, create, delete)
     Labels(LabelsOpts),
     /// Validate config, auth, teams and labels
     Doctor,
