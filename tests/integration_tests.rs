@@ -9,7 +9,6 @@
 /// - Issues reales en Linear (PROD, TOOL teams)
 ///
 /// NOTA: Estos tests LEEN de Linear, nunca escriben. Son seguros de ejecutar.
-
 use std::process::Command;
 
 /// Helper: ejecuta lql con args y devuelve (exit_code, stdout, stderr)
@@ -96,6 +95,15 @@ fn integration_filter_flag_rejected() {
     assert!(stderr.contains("--filter no existe"), "stderr: {stderr}");
 }
 
+#[test]
+#[ignore]
+fn integration_filter_flag_rejected_in_json_mode_uses_machine_error_prefix() {
+    let (code, _stdout, stderr) = run_lql(&["list", "--filter", "backlog", "--json"]);
+    assert_ne!(code, 0);
+    assert!(stderr.starts_with("error: "), "stderr: {stderr}");
+    assert!(!stderr.contains("✗"), "stderr: {stderr}");
+}
+
 // --- Doctor funciona ---
 
 #[test]
@@ -103,7 +111,10 @@ fn integration_filter_flag_rejected() {
 fn integration_doctor() {
     let (code, stdout, _stderr) = run_lql(&["doctor"]);
     assert_eq!(code, 0);
-    assert!(stdout.contains("✓") || stdout.contains("teams"), "stdout: {stdout}");
+    assert!(
+        stdout.contains("✓") || stdout.contains("teams"),
+        "stdout: {stdout}"
+    );
 }
 
 // --- Labels funciona ---
@@ -121,7 +132,10 @@ fn integration_labels() {
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
     assert_eq!(code, 0, "stderr: {stderr}");
-    assert!(stdout.contains("tokamak") || stdout.contains("lql"), "stdout: {stdout}");
+    assert!(
+        stdout.contains("tokamak") || stdout.contains("lql"),
+        "stdout: {stdout}"
+    );
 }
 
 // --- List con --json produce JSONL válido ---
@@ -166,7 +180,8 @@ fn integration_list_no_label() {
 #[test]
 #[ignore]
 fn integration_no_label_with_label_error() {
-    let (code, _stdout, stderr) = run_lql(&["list", "--no-label", "--label", "bug", "--team", "TOOL"]);
+    let (code, _stdout, stderr) =
+        run_lql(&["list", "--no-label", "--label", "bug", "--team", "TOOL"]);
     assert_ne!(code, 0);
     assert!(
         stderr.contains("--no-label and --label are mutually exclusive"),

@@ -1,4 +1,7 @@
 use clap::{Parser, Subcommand};
+use std::sync::atomic::{AtomicBool, Ordering};
+
+static MACHINE_MODE: AtomicBool = AtomicBool::new(false);
 
 #[derive(Parser, Debug)]
 #[command(
@@ -324,17 +327,54 @@ pub fn parse() -> Cli {
     Cli::parse()
 }
 
+pub fn set_machine_mode(enabled: bool) {
+    MACHINE_MODE.store(enabled, Ordering::Relaxed);
+}
+
+pub fn machine_mode() -> bool {
+    MACHINE_MODE.load(Ordering::Relaxed)
+}
+
+pub fn command_prefers_machine_mode(command: &Command) -> bool {
+    match command {
+        Command::List(opts) => opts.json,
+        Command::Create(opts) => opts.json,
+        Command::Update(opts) => opts.json,
+        Command::View(opts) => opts.json,
+        Command::Search(opts) => opts.json,
+        Command::Labels(opts) => match &opts.action {
+            Some(LabelsAction::List(list)) => list.json,
+            Some(LabelsAction::Create(create)) => create.json,
+            Some(LabelsAction::Delete(_)) => false,
+            None => opts.json,
+        },
+        Command::Comment(_)
+        | Command::Relate(_)
+        | Command::Doctor
+        | Command::Context
+        | Command::Raw(_) => false,
+    }
+}
+
+fn emit_note(message: &str) {
+    if !machine_mode() {
+        eprintln!("{message}");
+    }
+}
+
 /// Normaliza un valor de estado (UI names → API values)
 pub fn normalize_state(state: &str, aliases: &std::collections::HashMap<String, String>) -> String {
     // Intentar lookup directo
     if let Some(normalized) = aliases.get(state) {
-        eprintln!("ℹ State \"{state}\" → normalized to \"{normalized}\"");
+        emit_note(&format!(
+            "ℹ State \"{state}\" → normalized to \"{normalized}\""
+        ));
         return normalized.clone();
     }
     // Intentar case-insensitive
     for (key, val) in aliases {
         if key.eq_ignore_ascii_case(state) {
-            eprintln!("ℹ State \"{state}\" → normalized to \"{val}\"");
+            emit_note(&format!("ℹ State \"{state}\" → normalized to \"{val}\""));
             return val.clone();
         }
     }
@@ -363,7 +403,7 @@ pub fn normalize_priority(
     // Intentar lookup
     let lower = priority.to_lowercase();
     if let Some(&n) = aliases.get(&lower) {
-        eprintln!("ℹ Priority \"{priority}\" → normalized to {n}");
+        emit_note(&format!("ℹ Priority \"{priority}\" → normalized to {n}"));
         return Ok(n);
     }
     Err(format!(
@@ -376,7 +416,7 @@ pub fn normalize_sort(sort: &str) -> String {
     match sort.to_lowercase().as_str() {
         "updated" | "updatedat" => {
             if sort.to_lowercase() == "updated" {
-                eprintln!("ℹ Sort \"updated\" → normalized to \"updatedAt\"");
+                emit_note("ℹ Sort \"updated\" → normalized to \"updatedAt\"");
             }
             "updatedAt".to_string()
         }
@@ -420,10 +460,7 @@ mod tests {
     // ERR-04: --state "In Progress" → started
     #[test]
     fn test_normalize_state_in_progress() {
-        assert_eq!(
-            normalize_state("In Progress", &state_aliases()),
-            "started"
-        );
+        assert_eq!(normalize_state("In Progress", &state_aliases()), "started");
     }
 
     // ERR-05: --state Done → completed
@@ -502,19 +539,45 @@ mod tests {
         assert_eq!(normalize_sort("priority"), "priority");
     }
 
+    #[test]
+    fn test_command_prefers_machine_mode_for_json_commands() {
+        let cli = Cli::try_parse_from(["lql", "list", "--json"]).unwrap();
+        assert!(command_prefers_machine_mode(&cli.command));
+
+        let cli = Cli::try_parse_from(["lql", "view", "PROD-1", "--json"]).unwrap();
+        assert!(command_prefers_machine_mode(&cli.command));
+
+        let cli = Cli::try_parse_from(["lql", "doctor"]).unwrap();
+        assert!(!command_prefers_machine_mode(&cli.command));
+    }
+
+    #[test]
+    fn test_machine_mode_flag_roundtrip() {
+        set_machine_mode(true);
+        assert!(machine_mode());
+        set_machine_mode(false);
+        assert!(!machine_mode());
+    }
+
     // --- ERR-11, ERR-12: flags ignorados silenciosamente ---
 
     #[test]
     fn test_no_pager_accepted_silently() {
         // --no-pager debe ser aceptado sin error por clap
         let result = Cli::try_parse_from(["lql", "list", "--no-pager"]);
-        assert!(result.is_ok(), "ERR-11: --no-pager should be accepted: {result:?}");
+        assert!(
+            result.is_ok(),
+            "ERR-11: --no-pager should be accepted: {result:?}"
+        );
     }
 
     #[test]
     fn test_no_interactive_accepted_silently() {
         let result = Cli::try_parse_from(["lql", "list", "--no-interactive"]);
-        assert!(result.is_ok(), "ERR-12: --no-interactive should be accepted: {result:?}");
+        assert!(
+            result.is_ok(),
+            "ERR-12: --no-interactive should be accepted: {result:?}"
+        );
     }
 
     // ERR-02: --status alias funciona
@@ -614,7 +677,8 @@ mod tests {
     // ERR-63: search con --state
     #[test]
     fn test_search_with_state() {
-        let cli = Cli::try_parse_from(["lql", "search", "OAuth", "--state", "backlog,unstarted"]).unwrap();
+        let cli = Cli::try_parse_from(["lql", "search", "OAuth", "--state", "backlog,unstarted"])
+            .unwrap();
         if let Command::Search(opts) = cli.command {
             assert_eq!(opts.state.unwrap(), vec!["backlog", "unstarted"]);
         } else {
@@ -627,7 +691,13 @@ mod tests {
     // ERR-65: comment inline
     #[test]
     fn test_comment_inline() {
-        let cli = Cli::try_parse_from(["lql", "comment", "PROD-587", "Investigado, el problema es X"]).unwrap();
+        let cli = Cli::try_parse_from([
+            "lql",
+            "comment",
+            "PROD-587",
+            "Investigado, el problema es X",
+        ])
+        .unwrap();
         if let Command::Comment(opts) = cli.command {
             assert_eq!(opts.issue_id, "PROD-587");
             assert_eq!(opts.body.as_deref(), Some("Investigado, el problema es X"));
@@ -639,7 +709,8 @@ mod tests {
     // ERR-66: comment desde fichero
     #[test]
     fn test_comment_from_file() {
-        let cli = Cli::try_parse_from(["lql", "comment", "PROD-587", "--file", "/tmp/c.md"]).unwrap();
+        let cli =
+            Cli::try_parse_from(["lql", "comment", "PROD-587", "--file", "/tmp/c.md"]).unwrap();
         if let Command::Comment(opts) = cli.command {
             assert!(opts.body.is_none());
             assert_eq!(opts.file.as_deref(), Some("/tmp/c.md"));
@@ -666,7 +737,8 @@ mod tests {
     // ERR-69: relate blocked-by
     #[test]
     fn test_relate_blocked_by_parsing() {
-        let cli = Cli::try_parse_from(["lql", "relate", "PROD-587", "blocked-by", "PROD-515"]).unwrap();
+        let cli =
+            Cli::try_parse_from(["lql", "relate", "PROD-587", "blocked-by", "PROD-515"]).unwrap();
         if let Command::Relate(opts) = cli.command {
             assert_eq!(opts.relation_type, "blocked-by");
         } else {
@@ -677,7 +749,8 @@ mod tests {
     // ERR-70: relate related
     #[test]
     fn test_relate_related_parsing() {
-        let cli = Cli::try_parse_from(["lql", "relate", "PROD-587", "related", "PROD-520"]).unwrap();
+        let cli =
+            Cli::try_parse_from(["lql", "relate", "PROD-587", "related", "PROD-520"]).unwrap();
         if let Command::Relate(opts) = cli.command {
             assert_eq!(opts.relation_type, "related");
         } else {
