@@ -7,7 +7,7 @@ static MACHINE_MODE: AtomicBool = AtomicBool::new(false);
 #[command(
     name = "lql",
     version,
-    about = "Linear Query Language — because everything must be rewritten in Rust 🦀"
+    about = "Query and manage Linear issues from the terminal"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -28,8 +28,10 @@ pub enum Command {
     Search(SearchOpts),
     /// Add a comment to an issue
     Comment(CommentOpts),
-    /// Create a relation between issues
+    /// Create or remove a relation between issues
     Relate(RelateOpts),
+    /// Remove a relation between issues (shorthand for relate ... unlink)
+    Unlink(UnlinkOpts),
     /// Manage labels (list, create, delete)
     Labels(LabelsOpts),
     /// Validate config, auth, teams and labels
@@ -247,6 +249,15 @@ pub struct RelateOpts {
 }
 
 #[derive(Parser, Debug)]
+pub struct UnlinkOpts {
+    /// First issue (e.g. PROD-587)
+    pub from: String,
+
+    /// Second issue (e.g. PROD-588)
+    pub to: String,
+}
+
+#[derive(Parser, Debug)]
 pub struct LabelsOpts {
     #[command(subcommand)]
     pub action: Option<LabelsAction>,
@@ -350,6 +361,7 @@ pub fn command_prefers_machine_mode(command: &Command) -> bool {
         },
         Command::Comment(_)
         | Command::Relate(_)
+        | Command::Unlink(_)
         | Command::Doctor
         | Command::Context
         | Command::Raw(_) => false,
@@ -755,6 +767,30 @@ mod tests {
             assert_eq!(opts.relation_type, "related");
         } else {
             panic!("Expected Relate");
+        }
+    }
+
+    // relate unlink via relate subcommand
+    #[test]
+    fn test_relate_unlink_parsing() {
+        let cli =
+            Cli::try_parse_from(["lql", "relate", "PROD-587", "unlink", "PROD-588"]).unwrap();
+        if let Command::Relate(opts) = cli.command {
+            assert_eq!(opts.relation_type, "unlink");
+        } else {
+            panic!("Expected Relate");
+        }
+    }
+
+    // unlink como comando directo
+    #[test]
+    fn test_unlink_command_parsing() {
+        let cli = Cli::try_parse_from(["lql", "unlink", "PROD-587", "PROD-588"]).unwrap();
+        if let Command::Unlink(opts) = cli.command {
+            assert_eq!(opts.from, "PROD-587");
+            assert_eq!(opts.to, "PROD-588");
+        } else {
+            panic!("Expected Unlink");
         }
     }
 
