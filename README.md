@@ -121,6 +121,18 @@ lql-update
 
 A [1Password CLI](https://developer.1password.com/docs/cli/) setup with a Linear API key stored at `op://FRR DEV/Linear/api-key` (configurable in `~/.config/lql/config.toml`).
 
+Alternatively, set the `LINEAR_API_KEY` environment variable to bypass 1Password (useful for CI/CD or frequent CLI usage):
+
+```bash
+# One-time setup (Fish shell)
+set -gx LINEAR_API_KEY (op read "op://FRR DEV/Linear/api-key")
+
+# Bash/Zsh
+export LINEAR_API_KEY=$(op read "op://FRR DEV/Linear/api-key")
+```
+
+This reads the API key once per shell session instead of once per `lql` invocation.
+
 ## Usage
 
 ```bash
