@@ -10,9 +10,7 @@ pub struct RealCommandRunner;
 
 impl CommandRunner for RealCommandRunner {
     fn run_op_read(&self, reference: &str) -> Result<std::process::Output, std::io::Error> {
-        ProcessCommand::new("op")
-            .args(["read", reference])
-            .output()
+        ProcessCommand::new("op").args(["read", reference]).output()
     }
 }
 
@@ -23,6 +21,15 @@ pub fn get_api_key(reference: &str) -> Result<String, String> {
 
 /// Versión testeable: acepta un runner inyectable
 pub fn get_api_key_with(runner: &dyn CommandRunner, reference: &str) -> Result<String, String> {
+    // Fast path: env var avoids op read entirely
+    if let Ok(key) = std::env::var("LINEAR_API_KEY") {
+        let key = key.trim().to_string();
+        if !key.is_empty() {
+            return Ok(key);
+        }
+    }
+
+    // Existing op read path
     let output = runner.run_op_read(reference).map_err(|e| {
         format!(
             "Could not run 'op read'. Is 1Password CLI installed?\n  Error: {e}\n  Run: op read \"{reference}\"\n  If this fails, check: op signin"
@@ -49,6 +56,7 @@ pub fn get_api_key_with(runner: &dyn CommandRunner, reference: &str) -> Result<S
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::os::unix::process::ExitStatusExt;
 
     struct MockRunner {
@@ -122,5 +130,59 @@ mod tests {
         };
         let key = get_api_key_with(&runner, "op://test/ref").unwrap();
         assert_eq!(key, "lin_api_abc123");
+    }
+
+    // LINEAR_API_KEY env var takes precedence
+    #[test]
+    #[serial]
+    fn test_env_var_takes_precedence() {
+        // SAFETY: test-only, isolated env var manipulation
+        unsafe {
+            std::env::set_var("LINEAR_API_KEY", "lin_test_from_env");
+        }
+        let runner = MockRunner {
+            result: Err(std::io::ErrorKind::NotFound),
+        };
+        let key = get_api_key_with(&runner, "op://test/ref").unwrap();
+        assert_eq!(key, "lin_test_from_env");
+        unsafe {
+            std::env::remove_var("LINEAR_API_KEY");
+        }
+    }
+
+    // Empty env var falls through to op read
+    #[test]
+    #[serial]
+    fn test_empty_env_var_falls_through_to_op() {
+        // SAFETY: test-only, isolated env var manipulation
+        unsafe {
+            std::env::set_var("LINEAR_API_KEY", "");
+        }
+        let runner = MockRunner {
+            result: Ok(mock_output(0, "lin_from_op\n", "")),
+        };
+        let key = get_api_key_with(&runner, "op://test/ref").unwrap();
+        assert_eq!(key, "lin_from_op");
+        unsafe {
+            std::env::remove_var("LINEAR_API_KEY");
+        }
+    }
+
+    // Whitespace-only env var falls through to op read
+    #[test]
+    #[serial]
+    fn test_whitespace_env_var_falls_through_to_op() {
+        // SAFETY: test-only, isolated env var manipulation
+        unsafe {
+            std::env::set_var("LINEAR_API_KEY", "   ");
+        }
+        let runner = MockRunner {
+            result: Ok(mock_output(0, "lin_from_op\n", "")),
+        };
+        let key = get_api_key_with(&runner, "op://test/ref").unwrap();
+        assert_eq!(key, "lin_from_op");
+        unsafe {
+            std::env::remove_var("LINEAR_API_KEY");
+        }
     }
 }

@@ -26,6 +26,7 @@ toon-format = { version = "0.4.4", default-features = false }
 
 [dev-dependencies]
 proptest = "1"
+serial_test = "3"
 
 # The profile that 'dist' will build with
 [profile.dist]
