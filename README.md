@@ -2,7 +2,7 @@
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.93%2B-orange.svg)](https://www.rust-lang.org)
-[![Tests](https://img.shields.io/badge/tests-264%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-305%20passing-brightgreen.svg)](#testing)
 [![Binary Size](https://img.shields.io/badge/binary-4.7%20MB-informational.svg)](#install)
 [![Built with Adversarial Programming](https://img.shields.io/badge/built%20with-adversarial%20programming-black.svg)](https://frr.dev/en/the-wrong-path-should-be-impossible-not-forbidden/)
 
