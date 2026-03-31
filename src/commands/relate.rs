@@ -1,4 +1,4 @@
-use crate::cli::RelateOpts;
+use crate::cli::{RelateOpts, UnlinkOpts};
 use crate::client::{Client, GraphQLClient};
 use crate::commands::update::find_issue_by_identifier;
 use crate::config::Config;
@@ -39,6 +39,15 @@ pub fn normalize_relation_type(input: &str) -> Result<NormalizedRelation, String
 }
 
 pub fn run(config: &Config, opts: &RelateOpts) -> Result<(), String> {
+    // Si el tipo es "unlink", delegar a run_unlink
+    if opts.relation_type.eq_ignore_ascii_case("unlink") {
+        let unlink_opts = UnlinkOpts {
+            from: opts.from.clone(),
+            to: opts.to.clone(),
+        };
+        return run_unlink(config, &unlink_opts);
+    }
+
     let client = Client::new(&config.auth.api_key_ref)?;
 
     // Normalizar tipo de relación
@@ -84,6 +93,113 @@ pub fn run(config: &Config, opts: &RelateOpts) -> Result<(), String> {
         return Err(format!(
             "Failed to create relation {} {} {}",
             opts.from, norm.display, opts.to
+        ));
+    }
+
+    Ok(())
+}
+
+/// Busca el ID de una relación entre dos issues (en cualquier dirección).
+fn find_relation_id(
+    client: &Client,
+    from_identifier: &str,
+    to_identifier: &str,
+) -> Result<String, String> {
+    let (team, number) = from_identifier
+        .split_once('-')
+        .ok_or_else(|| format!("Invalid identifier: {from_identifier}"))?;
+    let number: i64 = number
+        .parse()
+        .map_err(|_| format!("Invalid issue number in {from_identifier}"))?;
+
+    let variables = serde_json::json!({
+        "filter": {
+            "team": { "key": { "eq": team } },
+            "number": { "eq": number }
+        }
+    });
+
+    let data = client.query(crate::queries::ISSUE_RELATIONS_QUERY, variables)?;
+
+    let issue = data
+        .get("issues")
+        .and_then(|i| i.get("nodes"))
+        .and_then(|n| n.as_array())
+        .and_then(|a| a.first())
+        .ok_or_else(|| format!("Issue {from_identifier} not found"))?;
+
+    // Buscar en relaciones directas (from → to)
+    if let Some(relations) = issue
+        .get("relations")
+        .and_then(|r| r.get("nodes"))
+        .and_then(|n| n.as_array())
+    {
+        for rel in relations {
+            let target = rel
+                .get("relatedIssue")
+                .and_then(|ri| ri.get("identifier"))
+                .and_then(|id| id.as_str())
+                .unwrap_or("");
+            if target.eq_ignore_ascii_case(to_identifier) {
+                if let Some(id) = rel.get("id").and_then(|id| id.as_str()) {
+                    return Ok(id.to_string());
+                }
+            }
+        }
+    }
+
+    // Buscar en relaciones inversas (to → from, almacenada al revés)
+    if let Some(inverse) = issue
+        .get("inverseRelations")
+        .and_then(|r| r.get("nodes"))
+        .and_then(|n| n.as_array())
+    {
+        for rel in inverse {
+            let source = rel
+                .get("issue")
+                .and_then(|ri| ri.get("identifier"))
+                .and_then(|id| id.as_str())
+                .unwrap_or("");
+            if source.eq_ignore_ascii_case(to_identifier) {
+                if let Some(id) = rel.get("id").and_then(|id| id.as_str()) {
+                    return Ok(id.to_string());
+                }
+            }
+        }
+    }
+
+    Err(format!(
+        "No relation found between {from_identifier} and {to_identifier}"
+    ))
+}
+
+pub fn run_unlink(config: &Config, opts: &UnlinkOpts) -> Result<(), String> {
+    let client = Client::new(&config.auth.api_key_ref)?;
+
+    // Buscar la relación en ambas direcciones
+    let relation_id = match find_relation_id(&client, &opts.from, &opts.to) {
+        Ok(id) => id,
+        Err(_) => {
+            // Intentar en la dirección opuesta
+            find_relation_id(&client, &opts.to, &opts.from)?
+        }
+    };
+
+    let variables = serde_json::json!({ "id": relation_id });
+    let data = client.query(crate::queries::RELATION_DELETE_MUTATION, variables)?;
+
+    let success = data
+        .get("issueRelationDelete")
+        .and_then(|r| r.get("success"))
+        .and_then(|s| s.as_bool())
+        .unwrap_or(false);
+
+    if success {
+        println!("✓ Unlinked {} ↔ {}", opts.from, opts.to);
+    } else {
+        return Err(format!(
+            "Failed to remove relation between {} and {}",
+            opts.from, opts.to
         ));
     }
 

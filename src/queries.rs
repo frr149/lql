@@ -213,6 +213,44 @@ mutation CreateRelation($input: IssueRelationCreateInput!) {
 }
 "#;
 
+/// Obtener relaciones de un issue (con IDs para poder borrarlas)
+pub const ISSUE_RELATIONS_QUERY: &str = r#"
+query IssueRelations($filter: IssueFilter) {
+  issues(filter: $filter, first: 1) {
+    nodes {
+      identifier
+      relations {
+        nodes {
+          id
+          type
+          relatedIssue {
+            identifier
+          }
+        }
+      }
+      inverseRelations {
+        nodes {
+          id
+          type
+          issue {
+            identifier
+          }
+        }
+      }
+    }
+  }
+}
+"#;
+
+/// Borrar relación
+pub const RELATION_DELETE_MUTATION: &str = r#"
+mutation DeleteRelation($id: String!) {
+  issueRelationDelete(id: $id) {
+    success
+  }
+}
+"#;
+
 /// Crear label
 pub const LABEL_CREATE_MUTATION: &str = r#"
 mutation CreateLabel($input: IssueLabelCreateInput!) {
