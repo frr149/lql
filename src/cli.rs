@@ -7,7 +7,7 @@ static MACHINE_MODE: AtomicBool = AtomicBool::new(false);
 #[command(
     name = "lql",
     version,
-    about = "Query and manage Linear issues from the terminal"
+    about = "Query and manage Linear issues from the terminal, in Rust!"
 )]
 pub struct Cli {
     #[command(subcommand)]
