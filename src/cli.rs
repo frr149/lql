@@ -38,6 +38,8 @@ pub enum Command {
     Doctor,
     /// Show resolved context for current directory
     Context,
+    /// Manage epics (Linear initiatives with a backing project)
+    Epic(EpicOpts),
     /// Execute a raw GraphQL query
     Raw(RawOpts),
 }
@@ -334,6 +336,85 @@ pub struct RawOpts {
     pub vars_file: Option<String>,
 }
 
+#[derive(Parser, Debug)]
+pub struct EpicOpts {
+    #[command(subcommand)]
+    pub action: EpicAction,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum EpicAction {
+    /// Create a new epic
+    Create(EpicCreateOpts),
+    /// List epics
+    List(EpicListOpts),
+    /// View epic details and issues
+    View(EpicViewOpts),
+    /// Assign issues to an epic
+    Add(EpicAddOpts),
+}
+
+#[derive(Parser, Debug)]
+pub struct EpicCreateOpts {
+    /// Epic title
+    pub title: String,
+
+    /// Inline description
+    #[arg(short, long)]
+    pub description: Option<String>,
+
+    /// Description from file
+    #[arg(long)]
+    pub description_file: Option<String>,
+
+    /// Team(s) for the epic backing project (comma-separated)
+    #[arg(long, value_delimiter = ',')]
+    pub team: Option<Vec<String>>,
+
+    /// Output as JSON
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct EpicListOpts {
+    /// Filter by team
+    #[arg(long)]
+    pub team: Option<String>,
+
+    /// Max results
+    #[arg(long)]
+    pub limit: Option<u32>,
+
+    /// No limit (all results)
+    #[arg(long)]
+    pub all: bool,
+
+    /// Output as JSONL
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct EpicViewOpts {
+    /// Epic ID (slugId, UUID, or Linear URL)
+    pub epic_id: String,
+
+    /// Output as JSON
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct EpicAddOpts {
+    /// Epic ID (slugId, UUID, or Linear URL)
+    pub epic_id: String,
+
+    /// Issue IDs to assign
+    #[arg(required = true)]
+    pub issue_ids: Vec<String>,
+}
+
 pub fn parse() -> Cli {
     Cli::parse()
 }
@@ -353,6 +434,12 @@ pub fn command_prefers_machine_mode(command: &Command) -> bool {
         Command::Update(opts) => opts.json,
         Command::View(opts) => opts.json,
         Command::Search(opts) => opts.json,
+        Command::Epic(opts) => match &opts.action {
+            EpicAction::Create(create) => create.json,
+            EpicAction::List(list) => list.json,
+            EpicAction::View(view) => view.json,
+            EpicAction::Add(_) => false,
+        },
         Command::Labels(opts) => match &opts.action {
             Some(LabelsAction::List(list)) => list.json,
             Some(LabelsAction::Create(create)) => create.json,

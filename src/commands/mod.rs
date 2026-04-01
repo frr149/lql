@@ -2,6 +2,7 @@ pub mod comment;
 pub mod context;
 pub mod create;
 pub mod doctor;
+pub mod epic;
 pub mod labels;
 pub mod list;
 pub mod raw;
