@@ -305,6 +305,193 @@ pub fn format_issues_toon(issues: &[&Value]) -> String {
     }
 }
 
+/// Formatea un epic como JSON
+pub fn format_epic_json(epic: &Value) -> String {
+    let id = epic.get("slugId").and_then(|v| v.as_str()).unwrap_or("");
+    let title = epic.get("name").and_then(|v| v.as_str()).unwrap_or("");
+    let status = epic_status_machine(epic);
+    let target = epic.get("targetDate").and_then(|v| v.as_str());
+    let teams = extract_epic_teams(epic);
+    let projects_count = epic
+        .get("projects")
+        .and_then(|p| p.get("nodes"))
+        .and_then(|n| n.as_array())
+        .map(|nodes| nodes.len())
+        .unwrap_or(0);
+    let issues_count = extract_epic_issue_count(epic);
+
+    let mut obj = serde_json::json!({
+        "id": id,
+        "status": status,
+        "title": title,
+        "teams": teams,
+        "projects": projects_count,
+        "issues": issues_count,
+    });
+
+    if let Some(target) = target {
+        obj["target"] = serde_json::json!(target);
+    }
+
+    serde_json::to_string(&obj).unwrap_or_default()
+}
+
+pub fn format_epic_created(epic: &Value) -> String {
+    let id = epic.get("slugId").and_then(|v| v.as_str()).unwrap_or("???");
+    let title = epic.get("name").and_then(|v| v.as_str()).unwrap_or("(no title)");
+    let status = epic_status_human(epic);
+    let url = epic.get("url").and_then(|v| v.as_str()).unwrap_or("");
+
+    format!("✓ {id} created [{status}] — {title}\n  {url}")
+}
+
+pub fn format_epics_toon(epics: &[&Value]) -> String {
+    let toon_epics: Vec<Value> = epics
+        .iter()
+        .map(|epic| {
+            let id = epic.get("slugId").and_then(|v| v.as_str()).unwrap_or("");
+            let status = epic_status_machine(epic);
+            let title = epic.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            let teams = extract_epic_teams(epic).join(",");
+            let projects = epic
+                .get("projects")
+                .and_then(|p| p.get("nodes"))
+                .and_then(|n| n.as_array())
+                .map(|nodes| nodes.len())
+                .unwrap_or(0);
+            let target = epic
+                .get("targetDate")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+
+            serde_json::json!({
+                "id": id,
+                "status": status,
+                "teams": teams,
+                "title": title,
+                "projects": projects,
+                "target": target,
+            })
+        })
+        .collect();
+
+    match toon_format::encode_default(&toon_epics) {
+        Ok(toon) => toon,
+        Err(e) => format!("Error encoding TOON: {e}"),
+    }
+}
+
+pub fn format_epics_footer(epics: &[Value], limit: u32) -> String {
+    let count = epics.len();
+    let mut status_counts: HashMap<String, usize> = HashMap::new();
+
+    for epic in epics {
+        let status = epic_status_machine(epic);
+        *status_counts.entry(status).or_insert(0) += 1;
+    }
+
+    let mut parts: Vec<String> = status_counts
+        .into_iter()
+        .map(|(status, count)| format!("{count} {status}"))
+        .collect();
+    parts.sort();
+
+    let breakdown = if parts.is_empty() {
+        String::new()
+    } else {
+        format!(" ({})", parts.join(", "))
+    };
+
+    if count as u32 == limit && limit > 0 {
+        return format!("── {count} epics{breakdown} (may have more, use --all or --limit N)");
+    }
+
+    format!("── {count} epics{breakdown}")
+}
+
+pub fn format_epic_view(epic: &Value) -> String {
+    let id = epic.get("slugId").and_then(|v| v.as_str()).unwrap_or("???");
+    let title = epic.get("name").and_then(|v| v.as_str()).unwrap_or("(no title)");
+    let status = epic_status_human(epic);
+    let teams = extract_epic_teams(epic);
+    let projects = epic
+        .get("projects")
+        .and_then(|p| p.get("nodes"))
+        .and_then(|n| n.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    let team_str = if teams.is_empty() {
+        "?".to_string()
+    } else {
+        teams.join(",")
+    };
+    let mut lines = vec![format!("{id} [{status}] {team_str} — {title}")];
+
+    let mut meta = vec![
+        format!("Projects: {}", projects.len()),
+        format!("Issues: {}", extract_epic_issue_count(epic)),
+    ];
+    if !teams.is_empty() {
+        meta.push(format!("Teams: {}", teams.join(",")));
+    }
+    if let Some(target) = epic.get("targetDate").and_then(|v| v.as_str()) {
+        meta.push(format!("Target: {target}"));
+    }
+    lines.push(format!("  {}", meta.join(" | ")));
+
+    if let Some(url) = epic.get("url").and_then(|v| v.as_str()) {
+        lines.push(format!("  {url}"));
+    }
+
+    if let Some(desc) = epic.get("description").and_then(|d| d.as_str())
+        && !desc.is_empty()
+    {
+        lines.push("  ─────".to_string());
+        for line in desc.lines() {
+            lines.push(format!("  {line}"));
+        }
+        lines.push("  ─────".to_string());
+    }
+
+    if !projects.is_empty() {
+        let project_names: Vec<String> = projects
+            .iter()
+            .filter_map(|project| {
+                let name = project.get("name").and_then(|v| v.as_str())?;
+                let teams = project
+                    .get("teams")
+                    .and_then(|t| t.get("nodes"))
+                    .and_then(|n| n.as_array())
+                    .map(|nodes| {
+                        nodes
+                            .iter()
+                            .filter_map(|team| {
+                                team.get("key").and_then(|v| v.as_str()).map(ToOwned::to_owned)
+                            })
+                            .collect::<Vec<String>>()
+                    })
+                    .unwrap_or_default();
+                if teams.is_empty() {
+                    Some(name.to_string())
+                } else {
+                    Some(format!("{name} [{}]", teams.join(",")))
+                }
+            })
+            .collect();
+        lines.push(format!("  Projects: {}", project_names.join(", ")));
+    }
+
+    let issues = extract_epic_issues(epic);
+    if !issues.is_empty() {
+        let refs: Vec<&Value> = issues.iter().collect();
+        lines.push(format_issues_toon(&refs));
+        lines.push(format_footer(&issues, None, 250));
+    }
+
+    lines.join("\n")
+}
+
 // --- Helpers ---
 
 fn extract_labels(issue: &Value) -> Vec<String> {
@@ -362,6 +549,74 @@ fn format_due(issue: &Value) -> String {
             }
         }
         Err(_) => due_str.to_string(),
+    }
+}
+
+fn extract_epic_teams(epic: &Value) -> Vec<String> {
+    let mut teams = Vec::new();
+    if let Some(projects) = epic
+        .get("projects")
+        .and_then(|p| p.get("nodes"))
+        .and_then(|n| n.as_array())
+    {
+        for project in projects {
+            if let Some(project_teams) = project
+                .get("teams")
+                .and_then(|t| t.get("nodes"))
+                .and_then(|n| n.as_array())
+            {
+                for team in project_teams {
+                    if let Some(key) = team.get("key").and_then(|v| v.as_str())
+                        && !teams.iter().any(|existing| existing == key)
+                    {
+                        teams.push(key.to_string());
+                    }
+                }
+            }
+        }
+    }
+    teams
+}
+
+fn extract_epic_issues(epic: &Value) -> Vec<Value> {
+    epic.get("projects")
+        .and_then(|p| p.get("nodes"))
+        .and_then(|n| n.as_array())
+        .map(|projects| {
+            let mut issues = Vec::new();
+            for project in projects {
+                if let Some(nodes) = project
+                    .get("issues")
+                    .and_then(|i| i.get("nodes"))
+                    .and_then(|n| n.as_array())
+                {
+                    for issue in nodes {
+                        issues.push(issue.clone());
+                    }
+                }
+            }
+            issues
+        })
+        .unwrap_or_default()
+}
+
+fn extract_epic_issue_count(epic: &Value) -> usize {
+    extract_epic_issues(epic).len()
+}
+
+fn epic_status_machine(epic: &Value) -> String {
+    epic.get("status")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown")
+        .to_lowercase()
+}
+
+fn epic_status_human(epic: &Value) -> String {
+    let status = epic_status_machine(epic);
+    let mut chars = status.chars();
+    match chars.next() {
+        Some(first) => format!("{}{}", first.to_uppercase(), chars.as_str()),
+        None => "Unknown".to_string(),
     }
 }
 
@@ -460,6 +715,34 @@ mod tests {
     fn test_format_updated() {
         let output = format_updated("PROD-587", "Backlog", "Done");
         assert_eq!(output, "✓ PROD-587 Backlog → Done");
+    }
+
+    #[test]
+    fn test_format_epic_created() {
+        let epic = serde_json::json!({
+            "slugId": "pre-locale",
+            "name": "Pre-locale",
+            "status": "planned",
+            "url": "https://linear.app/frr149/initiative/pre-locale"
+        });
+        let output = format_epic_created(&epic);
+        assert!(output.starts_with("✓ pre-locale created [Planned]"));
+        assert!(output.contains("linear.app"));
+    }
+
+    #[test]
+    fn test_format_epic_json() {
+        let epic = serde_json::json!({
+            "slugId": "pre-locale",
+            "name": "Pre-locale",
+            "status": "active",
+            "projects": {"nodes": [{"teams": {"nodes": [{"key": "TOOL"}]}}]}
+        });
+        let output = format_epic_json(&epic);
+        let parsed: Value = serde_json::from_str(&output).unwrap();
+        assert_eq!(parsed["id"], "pre-locale");
+        assert_eq!(parsed["status"], "active");
+        assert_eq!(parsed["teams"][0], "TOOL");
     }
 }
 

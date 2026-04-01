@@ -49,6 +49,7 @@ query ListIssues($filter: IssueFilter, $first: Int, $orderBy: PaginationOrderBy)
         }
       }
       project {
+        id
         name
       }
       team {
@@ -247,6 +248,146 @@ pub const RELATION_DELETE_MUTATION: &str = r#"
 mutation DeleteRelation($id: String!) {
   issueRelationDelete(id: $id) {
     success
+  }
+}
+"#;
+
+/// Listar epics (Linear initiatives)
+pub const INITIATIVES_QUERY: &str = r#"
+query ListInitiatives($filter: InitiativeFilter, $first: Int, $orderBy: PaginationOrderBy) {
+  initiatives(filter: $filter, first: $first, orderBy: $orderBy) {
+    nodes {
+      id
+      slugId
+      name
+      description
+      status
+      targetDate
+      createdAt
+      url
+      projects(first: 25) {
+        nodes {
+          id
+          name
+          slugId
+          teams {
+            nodes {
+              key
+            }
+          }
+        }
+      }
+    }
+  }
+}
+"#;
+
+/// Buscar epic por slugId / UUID
+pub const INITIATIVE_BY_REF_QUERY: &str = r#"
+query InitiativeByRef($filter: InitiativeFilter) {
+  initiatives(filter: $filter, first: 1) {
+    nodes {
+      id
+      slugId
+      name
+      description
+      status
+      targetDate
+      createdAt
+      url
+      projects(first: 50) {
+        nodes {
+          id
+          name
+          slugId
+          url
+          targetDate
+          teams {
+            nodes {
+              key
+            }
+          }
+          issues(first: 250) {
+            nodes {
+              id
+              identifier
+              title
+              priority
+              state {
+                name
+                type
+              }
+              labels {
+                nodes {
+                  name
+                }
+              }
+              project {
+                id
+                name
+              }
+              team {
+                key
+              }
+              createdAt
+              dueDate
+              url
+            }
+          }
+        }
+      }
+    }
+  }
+}
+"#;
+
+/// Crear epic
+pub const INITIATIVE_CREATE_MUTATION: &str = r#"
+mutation CreateInitiative($input: InitiativeCreateInput!) {
+  initiativeCreate(input: $input) {
+    success
+    initiative {
+      id
+      slugId
+      name
+      description
+      status
+      targetDate
+      createdAt
+      url
+    }
+  }
+}
+"#;
+
+/// Crear project de backing para un epic
+pub const PROJECT_CREATE_MUTATION: &str = r#"
+mutation CreateProject($input: ProjectCreateInput!) {
+  projectCreate(input: $input) {
+    success
+    project {
+      id
+      name
+      slugId
+      url
+      teams {
+        nodes {
+          key
+        }
+      }
+    }
+  }
+}
+"#;
+
+/// Enlazar project a epic
+pub const INITIATIVE_TO_PROJECT_CREATE_MUTATION: &str = r#"
+mutation LinkInitiativeProject($input: InitiativeToProjectCreateInput!) {
+  initiativeToProjectCreate(input: $input) {
+    success
+    initiativeToProject {
+      id
+    }
   }
 }
 "#;

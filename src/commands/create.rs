@@ -95,13 +95,20 @@ pub fn run(config: &Config, opts: &CreateOpts) -> Result<(), String> {
 }
 
 fn get_description(opts: &CreateOpts) -> Result<Option<String>, String> {
+    get_description_from_args(opts.description.as_ref(), opts.description_file.as_ref())
+}
+
+pub fn get_description_from_args(
+    description: Option<&String>,
+    description_file: Option<&String>,
+) -> Result<Option<String>, String> {
     // Inline
-    if let Some(ref desc) = opts.description {
+    if let Some(desc) = description {
         return Ok(Some(desc.clone()));
     }
 
     // Fichero
-    if let Some(ref path) = opts.description_file {
+    if let Some(path) = description_file {
         let content = std::fs::read_to_string(path)
             .map_err(|e| format!("Could not read description file {path}: {e}"))?;
         return Ok(Some(content));
