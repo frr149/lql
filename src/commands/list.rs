@@ -27,16 +27,17 @@ pub fn run(config: &Config, opts: &ListOpts) -> Result<(), String> {
         filter["team"] = serde_json::json!({"key": {"eq": team_key}});
 
         // Resolver labels: explicit > context-map
-        let label_names = opts.label.as_deref().or_else(|| {
-            ctx_label.as_ref().map(std::slice::from_ref)
-        });
+        let label_names = opts
+            .label
+            .as_deref()
+            .or_else(|| ctx_label.as_ref().map(std::slice::from_ref));
         if let Some(names) = label_names
             && opts.label.is_some()
         {
             // Solo validar labels explícitos
             let mut label_ids = Vec::new();
             for name in names {
-                let label = meta.find_label(name)?;
+                let label = meta.find_label_for_team(team_info, name)?;
                 label_ids.push(serde_json::json!({"id": {"eq": label.id}}));
             }
             if label_ids.len() == 1 {

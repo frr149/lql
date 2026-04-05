@@ -50,7 +50,7 @@ pub struct ListOpts {
     #[arg(long, alias = "status", value_delimiter = ',')]
     pub state: Option<Vec<String>>,
 
-    /// Filter by label
+    /// Filter by label (resolved within the target team when known)
     #[arg(long)]
     pub label: Option<Vec<String>>,
 
@@ -121,7 +121,7 @@ pub struct CreateOpts {
     #[arg(long)]
     pub project: Option<String>,
 
-    /// Label
+    /// Label (resolved within the target team)
     #[arg(long)]
     pub label: Option<Vec<String>>,
 
@@ -168,7 +168,7 @@ pub struct UpdateOpts {
     #[arg(long)]
     pub project: Option<String>,
 
-    /// Add label
+    /// Add label (resolved within the issue team)
     #[arg(long)]
     pub label: Option<Vec<String>>,
 
@@ -860,8 +860,7 @@ mod tests {
     // relate unlink via relate subcommand
     #[test]
     fn test_relate_unlink_parsing() {
-        let cli =
-            Cli::try_parse_from(["lql", "relate", "PROD-587", "unlink", "PROD-588"]).unwrap();
+        let cli = Cli::try_parse_from(["lql", "relate", "PROD-587", "unlink", "PROD-588"]).unwrap();
         if let Command::Relate(opts) = cli.command {
             assert_eq!(opts.relation_type, "unlink");
         } else {

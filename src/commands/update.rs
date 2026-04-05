@@ -64,7 +64,11 @@ pub fn run(config: &Config, opts: &UpdateOpts) -> Result<(), String> {
             .and_then(|n| n.as_array())
             .map(|arr| {
                 arr.iter()
-                    .filter_map(|l| l.get("name").and_then(|n| n.as_str()).map(|s| s.to_string()))
+                    .filter_map(|l| {
+                        l.get("name")
+                            .and_then(|n| n.as_str())
+                            .map(|s| s.to_string())
+                    })
                     .collect()
             })
             .unwrap_or_default();
@@ -72,12 +76,12 @@ pub fn run(config: &Config, opts: &UpdateOpts) -> Result<(), String> {
         // Resolver todos los labels (actuales + nuevos)
         let mut all_label_ids = Vec::new();
         for name in &current_labels {
-            if let Ok(label) = meta.find_label(name) {
+            if let Ok(label) = meta.find_label_for_team(team, name) {
                 all_label_ids.push(serde_json::json!(label.id));
             }
         }
         for name in label_names {
-            let label = meta.find_label(name)?;
+            let label = meta.find_label_for_team(team, name)?;
             all_label_ids.push(serde_json::json!(label.id));
         }
         input["labelIds"] = serde_json::json!(all_label_ids);
@@ -110,7 +114,10 @@ pub fn run(config: &Config, opts: &UpdateOpts) -> Result<(), String> {
     }
 
     if !has_changes {
-        return Err("No changes specified. Use --state, --priority, --label, --title, --project, or --due.".to_string());
+        return Err(
+            "No changes specified. Use --state, --priority, --label, --title, --project, or --due."
+                .to_string(),
+        );
     }
 
     let variables = serde_json::json!({
