@@ -25,6 +25,9 @@ pub const META_QUERY: &str = r#"
     nodes {
       id
       name
+      team {
+        key
+      }
     }
   }
 }

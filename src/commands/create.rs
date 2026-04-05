@@ -10,8 +10,7 @@ pub fn run(config: &Config, opts: &CreateOpts) -> Result<(), String> {
     let meta = LinearMeta::fetch(&client)?;
 
     // Resolver team/project/label
-    let (team_key, ctx_project, ctx_label) =
-        config.resolve_team(opts.team.as_deref(), &cwd)?;
+    let (team_key, ctx_project, ctx_label) = config.resolve_team(opts.team.as_deref(), &cwd)?;
     let team = meta.find_team(&team_key)?;
 
     // Construir input de la mutación
@@ -59,7 +58,7 @@ pub fn run(config: &Config, opts: &CreateOpts) -> Result<(), String> {
     if !label_names.is_empty() {
         let mut label_ids = Vec::new();
         for name in &label_names {
-            let label = meta.find_label(name)?;
+            let label = meta.find_label_for_team(team, name)?;
             label_ids.push(serde_json::json!(label.id));
         }
         input["labelIds"] = serde_json::json!(label_ids);
@@ -150,7 +149,11 @@ fn check_duplicates(client: &dyn GraphQLClient, title: &str) -> Result<(), Strin
             .filter_map(|n| {
                 let id = n.get("identifier")?.as_str()?;
                 let t = n.get("title")?.as_str()?;
-                let state_type = n.get("state").and_then(|s| s.get("type")).and_then(|t| t.as_str()).unwrap_or("");
+                let state_type = n
+                    .get("state")
+                    .and_then(|s| s.get("type"))
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("");
                 // Solo advertir de issues activas
                 if state_type == "completed" || state_type == "canceled" {
                     return None;
@@ -218,10 +221,8 @@ fn parse_due_date(input: &str) -> Result<String, String> {
 
     if let Some(target) = weekday {
         let current = today.weekday();
-        let days_ahead = (target.num_days_from_monday() as i64
-            - current.num_days_from_monday() as i64
-            + 7)
-            % 7;
+        let days_ahead =
+            (target.num_days_from_monday() as i64 - current.num_days_from_monday() as i64 + 7) % 7;
         let days_ahead = if days_ahead == 0 { 7 } else { days_ahead };
         let date = today + chrono::Duration::days(days_ahead);
         return Ok(date.format("%Y-%m-%d").to_string());
@@ -354,7 +355,8 @@ mod tests {
     // ERR-45: heredoc con comillas, backticks y $variables mezclados
     #[test]
     fn test_escape_mixed_special_chars() {
-        let desc = "## Problema\nEl campo \"title\" tiene `backticks` y $variables.\nPath: C:\\Users\\foo";
+        let desc =
+            "## Problema\nEl campo \"title\" tiene `backticks` y $variables.\nPath: C:\\Users\\foo";
         let json = serde_json::json!({"description": desc});
         let serialized = serde_json::to_string(&json).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&serialized).unwrap();
@@ -391,7 +393,9 @@ mod tests {
             title
         );
         assert_eq!(
-            parsed["variables"]["input"]["description"].as_str().unwrap(),
+            parsed["variables"]["input"]["description"]
+                .as_str()
+                .unwrap(),
             desc
         );
     }
