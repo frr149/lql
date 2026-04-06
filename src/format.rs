@@ -39,10 +39,7 @@ pub fn format_issue_json(issue: &Value) -> String {
         .get("identifier")
         .and_then(|v| v.as_str())
         .unwrap_or("");
-    let title = issue
-        .get("title")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let title = issue.get("title").and_then(|v| v.as_str()).unwrap_or("");
     let state_type = issue
         .get("state")
         .and_then(|s| s.get("type"))
@@ -53,10 +50,7 @@ pub fn format_issue_json(issue: &Value) -> String {
         .get("project")
         .and_then(|p| p.get("name"))
         .and_then(|n| n.as_str());
-    let priority = issue
-        .get("priority")
-        .and_then(|p| p.as_u64())
-        .unwrap_or(0);
+    let priority = issue.get("priority").and_then(|p| p.as_u64()).unwrap_or(0);
     let due_date = issue.get("dueDate").and_then(|d| d.as_str());
     let age_days = calculate_age_days(issue);
     let overdue = is_overdue(issue);
@@ -143,10 +137,7 @@ pub fn format_created(issue: &Value) -> String {
         .and_then(|s| s.get("name"))
         .and_then(|n| n.as_str())
         .unwrap_or("Todo");
-    let url = issue
-        .get("url")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let url = issue.get("url").and_then(|v| v.as_str()).unwrap_or("");
 
     let labels = extract_labels(issue);
     let label_str = if labels.is_empty() {
@@ -178,10 +169,7 @@ pub fn format_view(issue: &Value) -> String {
         .and_then(|s| s.get("name"))
         .and_then(|n| n.as_str())
         .unwrap_or("Unknown");
-    let priority = issue
-        .get("priority")
-        .and_then(|p| p.as_u64())
-        .unwrap_or(0);
+    let priority = issue.get("priority").and_then(|p| p.as_u64()).unwrap_or(0);
     let priority_str = match priority {
         1 => "P1",
         2 => "P2",
@@ -275,14 +263,25 @@ pub fn format_view(issue: &Value) -> String {
 
 /// Convierte una issue del API a un objeto plano para TOON (campos uniformes, sin nesting)
 pub fn format_issue_toon_obj(issue: &Value) -> Value {
-    let id = issue.get("identifier").and_then(|v| v.as_str()).unwrap_or("");
-    let state = issue.get("state").and_then(|s| s.get("name")).and_then(|n| n.as_str()).unwrap_or("");
+    let id = issue
+        .get("identifier")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let state = issue
+        .get("state")
+        .and_then(|s| s.get("name"))
+        .and_then(|n| n.as_str())
+        .unwrap_or("");
     let labels = extract_labels(issue).join(",");
     let title = issue.get("title").and_then(|v| v.as_str()).unwrap_or("");
     let priority = issue.get("priority").and_then(|p| p.as_u64()).unwrap_or(0);
     let age = format_age(issue);
     let due = format_due(issue);
-    let project = issue.get("project").and_then(|p| p.get("name")).and_then(|n| n.as_str()).unwrap_or("");
+    let project = issue
+        .get("project")
+        .and_then(|p| p.get("name"))
+        .and_then(|n| n.as_str())
+        .unwrap_or("");
 
     serde_json::json!({
         "id": id,
@@ -338,7 +337,10 @@ pub fn format_epic_json(epic: &Value) -> String {
 
 pub fn format_epic_created(epic: &Value) -> String {
     let id = epic.get("slugId").and_then(|v| v.as_str()).unwrap_or("???");
-    let title = epic.get("name").and_then(|v| v.as_str()).unwrap_or("(no title)");
+    let title = epic
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("(no title)");
     let status = epic_status_human(epic);
     let url = epic.get("url").and_then(|v| v.as_str()).unwrap_or("");
 
@@ -411,7 +413,10 @@ pub fn format_epics_footer(epics: &[Value], limit: u32) -> String {
 
 pub fn format_epic_view(epic: &Value) -> String {
     let id = epic.get("slugId").and_then(|v| v.as_str()).unwrap_or("???");
-    let title = epic.get("name").and_then(|v| v.as_str()).unwrap_or("(no title)");
+    let title = epic
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("(no title)");
     let status = epic_status_human(epic);
     let teams = extract_epic_teams(epic);
     let projects = epic
@@ -467,7 +472,9 @@ pub fn format_epic_view(epic: &Value) -> String {
                         nodes
                             .iter()
                             .filter_map(|team| {
-                                team.get("key").and_then(|v| v.as_str()).map(ToOwned::to_owned)
+                                team.get("key")
+                                    .and_then(|v| v.as_str())
+                                    .map(ToOwned::to_owned)
                             })
                             .collect::<Vec<String>>()
                     })
@@ -501,7 +508,11 @@ fn extract_labels(issue: &Value) -> Vec<String> {
         .and_then(|n| n.as_array())
         .map(|arr| {
             arr.iter()
-                .filter_map(|l| l.get("name").and_then(|n| n.as_str()).map(|s| s.to_string()))
+                .filter_map(|l| {
+                    l.get("name")
+                        .and_then(|n| n.as_str())
+                        .map(|s| s.to_string())
+                })
                 .collect()
         })
         .unwrap_or_default()
@@ -766,15 +777,17 @@ mod toon_tests {
 
     #[test]
     fn test_toon_from_real_fixture() {
-        let path = format!("{}/tests/fixtures/list_tool_5.json", env!("CARGO_MANIFEST_DIR"));
+        let path = format!(
+            "{}/tests/fixtures/list_tool_5.json",
+            env!("CARGO_MANIFEST_DIR")
+        );
         let content = std::fs::read_to_string(&path).unwrap();
         let fixture: serde_json::Value = serde_json::from_str(&content).unwrap();
         let issues = fixture["data"]["issues"]["nodes"].as_array().unwrap();
 
         // Convertir a formato TOON-friendly (campos planos uniformes)
-        let toon_issues: Vec<serde_json::Value> = issues.iter().map(|i| {
-            format_issue_toon_obj(i)
-        }).collect();
+        let toon_issues: Vec<serde_json::Value> =
+            issues.iter().map(|i| format_issue_toon_obj(i)).collect();
 
         let toon = toon_format::encode_default(&toon_issues).unwrap();
         eprintln!("\n--- TOON FROM FIXTURE ---\n{toon}\n--- END ---");

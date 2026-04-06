@@ -172,6 +172,10 @@ pub struct UpdateOpts {
     #[arg(long)]
     pub label: Option<Vec<String>>,
 
+    /// Remove all labels
+    #[arg(long)]
+    pub clear_labels: bool,
+
     /// Change title
     #[arg(long)]
     pub title: Option<String>,

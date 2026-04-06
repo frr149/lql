@@ -66,7 +66,8 @@ mod tests {
     // ERR-14: --filter → suggests --state or search
     #[test]
     fn test_filter_rejected_with_guidance() {
-        let err = check_common_mistakes(&args(&["lql", "list", "--filter", "backlog"])).unwrap_err();
+        let err =
+            check_common_mistakes(&args(&["lql", "list", "--filter", "backlog"])).unwrap_err();
         assert!(err.contains("--filter does not exist"), "{err}");
         assert!(err.contains("--state"), "{err}");
         assert!(err.contains("lql search"), "{err}");
@@ -75,8 +76,8 @@ mod tests {
     // ERR-15: --query → suggests lql search with value
     #[test]
     fn test_query_rejected_with_guidance() {
-        let err = check_common_mistakes(&args(&["lql", "list", "--query", "basedpyright"]))
-            .unwrap_err();
+        let err =
+            check_common_mistakes(&args(&["lql", "list", "--query", "basedpyright"])).unwrap_err();
         assert!(err.contains("--query does not exist"), "{err}");
         assert!(err.contains("lql search \"basedpyright\""), "{err}");
     }
@@ -102,20 +103,17 @@ mod tests {
         ]))
         .unwrap_err();
         assert!(err.contains("--relates-to does not exist"), "{err}");
-        assert!(err.contains("lql relate PROD-587 related PROD-588"), "{err}");
+        assert!(
+            err.contains("lql relate PROD-587 related PROD-588"),
+            "{err}"
+        );
     }
 
     // ERR-18: --comment in update → suggests lql comment
     #[test]
     fn test_comment_in_update_rejected_with_guidance() {
-        let err = check_common_mistakes(&args(&[
-            "lql",
-            "update",
-            "PROD-587",
-            "--comment",
-            "text",
-        ]))
-        .unwrap_err();
+        let err = check_common_mistakes(&args(&["lql", "update", "PROD-587", "--comment", "text"]))
+            .unwrap_err();
         assert!(err.contains("--comment does not exist in update"), "{err}");
         assert!(err.contains("lql comment PROD-587 \"text\""), "{err}");
     }
@@ -125,7 +123,9 @@ mod tests {
     fn test_valid_flags_pass_through() {
         assert!(check_common_mistakes(&args(&["lql", "list", "--state", "backlog"])).is_ok());
         assert!(check_common_mistakes(&args(&["lql", "list", "--all"])).is_ok());
-        assert!(check_common_mistakes(&args(&["lql", "update", "PROD-1", "--state", "Done"])).is_ok());
+        assert!(
+            check_common_mistakes(&args(&["lql", "update", "PROD-1", "--state", "Done"])).is_ok()
+        );
     }
 
     // Sin subcomando no falla
@@ -144,8 +144,8 @@ mod tests {
     // --relates-to fuera de update también se intercepta (nunca es válido)
     #[test]
     fn test_relates_to_outside_update_rejected() {
-        let err = check_common_mistakes(&args(&["lql", "list", "--relates-to", "PROD-1"]))
-            .unwrap_err();
+        let err =
+            check_common_mistakes(&args(&["lql", "list", "--relates-to", "PROD-1"])).unwrap_err();
         assert!(err.contains("--relates-to does not exist"), "{err}");
     }
 }

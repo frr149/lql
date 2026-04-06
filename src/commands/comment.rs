@@ -51,8 +51,7 @@ pub fn resolve_body(
     let body = if let Some(ref text) = opts.body {
         text.clone()
     } else if let Some(ref path) = opts.file {
-        std::fs::read_to_string(path)
-            .map_err(|e| format!("Could not read file {path}: {e}"))?
+        std::fs::read_to_string(path).map_err(|e| format!("Could not read file {path}: {e}"))?
     } else if !is_terminal {
         let mut buf = String::new();
         reader
