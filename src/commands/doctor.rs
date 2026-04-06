@@ -5,7 +5,10 @@ pub fn run(config: &Config) -> Result<(), String> {
     let mut all_ok = true;
 
     // 1. Config
-    println!("✓ Config loaded from {}", crate::config::config_path().display());
+    println!(
+        "✓ Config loaded from {}",
+        crate::config::config_path().display()
+    );
 
     // 2. Auth
     let client = match Client::new(&config.auth.api_key_ref) {
@@ -70,7 +73,10 @@ pub fn run(config: &Config) -> Result<(), String> {
             // Verificar teams del context-map existen
             for (path, entry) in &config.context_map {
                 if meta.find_team(&entry.team).is_err() {
-                    println!("✗ Context-map {path}: team \"{}\" not found in Linear", entry.team);
+                    println!(
+                        "✗ Context-map {path}: team \"{}\" not found in Linear",
+                        entry.team
+                    );
                     all_ok = false;
                 }
                 if let Some(ref label) = entry.label
