@@ -59,19 +59,43 @@ fn run_create(config: &Config, opts: &EpicCreateOpts) -> Result<(), String> {
         .get("id")
         .and_then(|v| v.as_str())
         .ok_or("Epic has no id")?;
-    let epic_slug = epic.get("slugId").and_then(|v| v.as_str()).unwrap_or(epic_id);
+    let epic_slug = epic
+        .get("slugId")
+        .and_then(|v| v.as_str())
+        .unwrap_or(epic_id);
 
-    if let Err(err) = ensure_backing_project(&client, opts.title.as_str(), &team_ids, epic_id) {
-        return Err(format!(
-            "Epic {epic_slug} was created, but its backing project could not be created: {err}"
-        ));
+    // Crear proyecto de backing y enlazarlo al epic.
+    // Si falla, reportamos el error pero no intentamos cargar el epic completo
+    // (evita una query compleja innecesaria en un epic recién creado).
+    let project = match ensure_backing_project(&client, opts.title.as_str(), &team_ids, epic_id) {
+        Ok(p) => Some(p),
+        Err(err) => {
+            eprintln!(
+                "Warning: Epic {epic_slug} was created, but its backing project could not be created: {err}"
+            );
+            None
+        }
+    };
+
+    // Construir la respuesta a partir de los datos ya disponibles en memoria
+    // en lugar de hacer una segunda query compleja (que Linear rechaza con
+    // "Query too complex" en epics recién creados).
+    let mut epic_response = epic.clone();
+    if let Some(proj) = project {
+        epic_response["projects"] = serde_json::json!({
+            "nodes": [proj]
+        });
+    } else {
+        epic_response["projects"] = serde_json::json!({ "nodes": [] });
     }
 
-    let epic = find_epic_by_ref(&client, epic_slug)?;
     if opts.json {
-        println!("{}", serde_json::to_string_pretty(&epic).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&epic_response).unwrap_or_default()
+        );
     } else {
-        println!("{}", format::format_epic_created(&epic));
+        println!("{}", format::format_epic_created(&epic_response));
     }
 
     Ok(())
@@ -84,7 +108,11 @@ fn run_list(config: &Config, opts: &EpicListOpts) -> Result<(), String> {
         filter["teams"] = serde_json::json!({"some": {"key": {"eq": team.to_uppercase()}}});
     }
 
-    let limit = if opts.all { 250 } else { opts.limit.unwrap_or(50) };
+    let limit = if opts.all {
+        250
+    } else {
+        opts.limit.unwrap_or(50)
+    };
     let data = client.query(
         crate::queries::INITIATIVES_QUERY,
         serde_json::json!({
@@ -119,7 +147,10 @@ fn run_view(config: &Config, opts: &EpicViewOpts) -> Result<(), String> {
     let epic = find_epic_by_ref(&client, &opts.epic_id)?;
 
     if opts.json {
-        println!("{}", serde_json::to_string_pretty(&epic).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&epic).unwrap_or_default()
+        );
     } else {
         println!("{}", format::format_epic_view(&epic));
     }
@@ -167,7 +198,7 @@ fn run_add(config: &Config, opts: &EpicAddOpts) -> Result<(), String> {
         count => {
             return Err(format!(
                 "Epic \"{epic_slug}\" has {count} projects. `lql epic add` only works when the epic has a single backing project."
-            ))
+            ));
         }
     };
 
@@ -214,7 +245,9 @@ fn run_add(config: &Config, opts: &EpicAddOpts) -> Result<(), String> {
             .and_then(|s| s.as_bool())
             .unwrap_or(false);
         if !success {
-            return Err(format!("Failed to assign {identifier} to epic {epic_slug}."));
+            return Err(format!(
+                "Failed to assign {identifier} to epic {epic_slug}."
+            ));
         }
         updated.push(identifier.to_string());
     }
@@ -235,12 +268,13 @@ fn run_add(config: &Config, opts: &EpicAddOpts) -> Result<(), String> {
 
 fn find_epic_by_ref(client: &dyn GraphQLClient, epic_ref: &str) -> Result<Value, String> {
     let normalized = normalize_epic_ref(epic_ref);
-    let filter = serde_json::json!({
-        "or": [
-            {"slugId": {"eq": normalized}},
-            {"id": {"eq": normalized}},
-        ]
-    });
+    // La API de Linear requiere UUID estricto para el campo `id`.
+    // Si el ref no es un UUID, usar slugId; si lo es, usar id.
+    let filter = if is_uuid(&normalized) {
+        serde_json::json!({"id": {"eq": normalized}})
+    } else {
+        serde_json::json!({"slugId": {"eq": normalized}})
+    };
 
     let data = client.query(
         crate::queries::INITIATIVE_BY_REF_QUERY,
@@ -253,6 +287,21 @@ fn find_epic_by_ref(client: &dyn GraphQLClient, epic_ref: &str) -> Result<Value,
         .and_then(|nodes| nodes.first())
         .cloned()
         .ok_or_else(|| format!("Epic \"{epic_ref}\" not found."))
+}
+
+/// Detecta si un string tiene formato UUID v4 (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+fn is_uuid(s: &str) -> bool {
+    let parts: Vec<&str> = s.split('-').collect();
+    matches!(
+        parts.as_slice(),
+        [a, b, c, d, e]
+            if a.len() == 8 && b.len() == 4 && c.len() == 4 && d.len() == 4 && e.len() == 12
+            && a.chars().all(|ch| ch.is_ascii_hexdigit())
+            && b.chars().all(|ch| ch.is_ascii_hexdigit())
+            && c.chars().all(|ch| ch.is_ascii_hexdigit())
+            && d.chars().all(|ch| ch.is_ascii_hexdigit())
+            && e.chars().all(|ch| ch.is_ascii_hexdigit())
+    )
 }
 
 fn normalize_epic_ref(epic_ref: &str) -> String {
@@ -278,7 +327,8 @@ fn resolve_issue_team_ids(meta: &LinearMeta, issues: &[Value]) -> Result<Vec<Str
     let team_keys: Vec<String> = issues
         .iter()
         .filter_map(|issue| {
-            issue.get("team")
+            issue
+                .get("team")
                 .and_then(|t| t.get("key"))
                 .and_then(|v| v.as_str())
                 .map(ToOwned::to_owned)
@@ -359,5 +409,24 @@ mod tests {
             normalize_epic_ref("https://linear.app/frr149/initiative/pre-locale/some-title"),
             "pre-locale"
         );
+    }
+
+    #[test]
+    fn test_is_uuid_valid() {
+        assert!(is_uuid("6c9e5137-c499-4518-920b-41dcaa779a27"));
+        assert!(is_uuid("d7262dfc-6061-498a-8d1b-438e6d2b93b5"));
+    }
+
+    #[test]
+    fn test_is_uuid_slug_rejected() {
+        assert!(!is_uuid("pre-locale"));
+        assert!(!is_uuid("3fdf346ca813"));
+        assert!(!is_uuid("v10-bastidor-3fdf346ca813"));
+    }
+
+    #[test]
+    fn test_is_uuid_short_rejected() {
+        assert!(!is_uuid("6c9e5137-c499-4518-920b"));
+        assert!(!is_uuid(""));
     }
 }

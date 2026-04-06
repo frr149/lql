@@ -256,6 +256,8 @@ mutation DeleteRelation($id: String!) {
 "#;
 
 /// Listar epics (Linear initiatives)
+/// Nota: initiatives(first:N) × projects(first:M) × teams supera complexity 10000 rápidamente.
+/// Limitamos a 25 epics × 5 proyectos sin anidación de teams para mantenernos bajo el umbral.
 pub const INITIATIVES_QUERY: &str = r#"
 query ListInitiatives($filter: InitiativeFilter, $first: Int, $orderBy: PaginationOrderBy) {
   initiatives(filter: $filter, first: $first, orderBy: $orderBy) {
@@ -268,16 +270,11 @@ query ListInitiatives($filter: InitiativeFilter, $first: Int, $orderBy: Paginati
       targetDate
       createdAt
       url
-      projects(first: 25) {
+      projects(first: 5) {
         nodes {
           id
           name
           slugId
-          teams {
-            nodes {
-              key
-            }
-          }
         }
       }
     }
@@ -286,6 +283,8 @@ query ListInitiatives($filter: InitiativeFilter, $first: Int, $orderBy: Paginati
 "#;
 
 /// Buscar epic por slugId / UUID
+/// Nota: projects(50) × issues(250) superaba complexity 100k. Reducido a projects(20) × issues(50)
+/// para mantenernos bajo el umbral de 10000 de Linear.
 pub const INITIATIVE_BY_REF_QUERY: &str = r#"
 query InitiativeByRef($filter: InitiativeFilter) {
   initiatives(filter: $filter, first: 1) {
@@ -298,7 +297,7 @@ query InitiativeByRef($filter: InitiativeFilter) {
       targetDate
       createdAt
       url
-      projects(first: 50) {
+      projects(first: 20) {
         nodes {
           id
           name
@@ -310,7 +309,7 @@ query InitiativeByRef($filter: InitiativeFilter) {
               key
             }
           }
-          issues(first: 250) {
+          issues(first: 50) {
             nodes {
               id
               identifier
