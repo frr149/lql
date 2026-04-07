@@ -81,8 +81,8 @@ The primary consumer is an LLM reading the output. lql uses [TOON](https://toonf
 ### Homebrew (macOS & Linux)
 
 ```bash
-brew tap frr149/lql
-brew install lql
+brew tap frr149/tools
+brew install frr149/tools/lql
 ```
 
 ### Shell installer (macOS & Linux)
