@@ -172,6 +172,8 @@ lql labels    # list all available labels
 lql raw '{ viewer { id name email } }'
 ```
 
+When a label name exists in multiple teams, `lql` resolves it within the target team for `create`, `update`, and team-scoped `list`. This avoids sending a label ID from the wrong team.
+
 ## Configuration
 
 `~/.config/lql/config.toml`:
