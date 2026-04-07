@@ -38,6 +38,8 @@ pub enum Command {
     Doctor,
     /// Show resolved context for current directory
     Context,
+    /// Manage epics (Linear initiatives with a backing project)
+    Epic(EpicOpts),
     /// Execute a raw GraphQL query
     Raw(RawOpts),
 }
@@ -48,7 +50,7 @@ pub struct ListOpts {
     #[arg(long, alias = "status", value_delimiter = ',')]
     pub state: Option<Vec<String>>,
 
-    /// Filter by label
+    /// Filter by label (resolved within the target team when known)
     #[arg(long)]
     pub label: Option<Vec<String>>,
 
@@ -119,7 +121,7 @@ pub struct CreateOpts {
     #[arg(long)]
     pub project: Option<String>,
 
-    /// Label
+    /// Label (resolved within the target team)
     #[arg(long)]
     pub label: Option<Vec<String>>,
 
@@ -166,7 +168,7 @@ pub struct UpdateOpts {
     #[arg(long)]
     pub project: Option<String>,
 
-    /// Add label
+    /// Add label (resolved within the issue team)
     #[arg(long)]
     pub label: Option<Vec<String>>,
 
@@ -334,6 +336,85 @@ pub struct RawOpts {
     pub vars_file: Option<String>,
 }
 
+#[derive(Parser, Debug)]
+pub struct EpicOpts {
+    #[command(subcommand)]
+    pub action: EpicAction,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum EpicAction {
+    /// Create a new epic
+    Create(EpicCreateOpts),
+    /// List epics
+    List(EpicListOpts),
+    /// View epic details and issues
+    View(EpicViewOpts),
+    /// Assign issues to an epic
+    Add(EpicAddOpts),
+}
+
+#[derive(Parser, Debug)]
+pub struct EpicCreateOpts {
+    /// Epic title
+    pub title: String,
+
+    /// Inline description
+    #[arg(short, long)]
+    pub description: Option<String>,
+
+    /// Description from file
+    #[arg(long)]
+    pub description_file: Option<String>,
+
+    /// Team(s) for the epic backing project (comma-separated)
+    #[arg(long, value_delimiter = ',')]
+    pub team: Option<Vec<String>>,
+
+    /// Output as JSON
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct EpicListOpts {
+    /// Filter by team
+    #[arg(long)]
+    pub team: Option<String>,
+
+    /// Max results
+    #[arg(long)]
+    pub limit: Option<u32>,
+
+    /// No limit (all results)
+    #[arg(long)]
+    pub all: bool,
+
+    /// Output as JSONL
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct EpicViewOpts {
+    /// Epic ID (slugId, UUID, or Linear URL)
+    pub epic_id: String,
+
+    /// Output as JSON
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct EpicAddOpts {
+    /// Epic ID (slugId, UUID, or Linear URL)
+    pub epic_id: String,
+
+    /// Issue IDs to assign
+    #[arg(required = true)]
+    pub issue_ids: Vec<String>,
+}
+
 pub fn parse() -> Cli {
     Cli::parse()
 }
@@ -353,6 +434,12 @@ pub fn command_prefers_machine_mode(command: &Command) -> bool {
         Command::Update(opts) => opts.json,
         Command::View(opts) => opts.json,
         Command::Search(opts) => opts.json,
+        Command::Epic(opts) => match &opts.action {
+            EpicAction::Create(create) => create.json,
+            EpicAction::List(list) => list.json,
+            EpicAction::View(view) => view.json,
+            EpicAction::Add(_) => false,
+        },
         Command::Labels(opts) => match &opts.action {
             Some(LabelsAction::List(list)) => list.json,
             Some(LabelsAction::Create(create)) => create.json,
@@ -773,8 +860,7 @@ mod tests {
     // relate unlink via relate subcommand
     #[test]
     fn test_relate_unlink_parsing() {
-        let cli =
-            Cli::try_parse_from(["lql", "relate", "PROD-587", "unlink", "PROD-588"]).unwrap();
+        let cli = Cli::try_parse_from(["lql", "relate", "PROD-587", "unlink", "PROD-588"]).unwrap();
         if let Command::Relate(opts) = cli.command {
             assert_eq!(opts.relation_type, "unlink");
         } else {

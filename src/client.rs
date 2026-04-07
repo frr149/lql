@@ -32,9 +32,9 @@ fn classify_http_status(status: u16, attempt: u32, max_retries: u32) -> HttpActi
                 )
             }
         }
-        401 => HttpAction::Error(
-            "Authentication failed. Check your API key: lql doctor".to_string(),
-        ),
+        401 => {
+            HttpAction::Error("Authentication failed. Check your API key: lql doctor".to_string())
+        }
         500..=599 => {
             if attempt < max_retries {
                 HttpAction::Retry(format!(
@@ -53,8 +53,8 @@ fn classify_http_status(status: u16, attempt: u32, max_retries: u32) -> HttpActi
 
 /// Parsea el body JSON de una respuesta Linear y extrae el campo "data"
 fn handle_response(body: &str) -> Result<Value, String> {
-    let json: Value =
-        serde_json::from_str(body).map_err(|e| format!("Could not parse Linear API response: {e}"))?;
+    let json: Value = serde_json::from_str(body)
+        .map_err(|e| format!("Could not parse Linear API response: {e}"))?;
 
     if let Some(errors) = json.get("errors")
         && let Some(first) = errors.as_array().and_then(|a| a.first())
@@ -182,6 +182,7 @@ pub struct ProjectInfo {
 pub struct LabelInfo {
     pub id: String,
     pub name: String,
+    pub team_key: Option<String>,
 }
 
 impl LinearMeta {
@@ -210,9 +211,7 @@ impl LinearMeta {
                 if let Some(&(best, dist)) = scored.first()
                     && dist <= 3
                 {
-                    return format!(
-                        "Team \"{key}\" does not exist. Did you mean: {best}?"
-                    );
+                    return format!("Team \"{key}\" does not exist. Did you mean: {best}?");
                 }
                 format!(
                     "Team \"{key}\" not found. Available: {}",
@@ -224,8 +223,6 @@ impl LinearMeta {
     pub fn find_state<'a>(&self, team: &'a TeamInfo, state_type: &str) -> Option<&'a StateInfo> {
         team.states.iter().find(move |s| s.state_type == state_type)
     }
-
-
 
     pub fn find_label(&self, name: &str) -> Result<&LabelInfo, String> {
         self.labels
@@ -253,7 +250,48 @@ impl LinearMeta {
             })
     }
 
-    pub fn find_project<'a>(&self, team: &'a TeamInfo, name: &str) -> Result<&'a ProjectInfo, String> {
+    pub fn find_label_for_team(&self, team: &TeamInfo, name: &str) -> Result<&LabelInfo, String> {
+        self.labels
+            .iter()
+            .find(|l| {
+                l.name.eq_ignore_ascii_case(name)
+                    && l.team_key
+                        .as_deref()
+                        .is_none_or(|team_key| team_key.eq_ignore_ascii_case(&team.key))
+            })
+            .ok_or_else(|| {
+                let needle = name.to_lowercase();
+                let mut scored: Vec<(&str, usize)> = self
+                    .labels
+                    .iter()
+                    .filter(|l| {
+                        l.team_key
+                            .as_deref()
+                            .is_none_or(|team_key| team_key.eq_ignore_ascii_case(&team.key))
+                    })
+                    .map(|l| {
+                        (
+                            l.name.as_str(),
+                            levenshtein(&needle, &l.name.to_lowercase()),
+                        )
+                    })
+                    .collect();
+                scored.sort_by_key(|&(_, d)| d);
+                let top: Vec<&str> = scored.iter().take(10).map(|&(s, _)| s).collect();
+                format!(
+                    "Label \"{name}\" not found in team {}. Closest (of {}): {}",
+                    team.key,
+                    scored.len(),
+                    top.join(", ")
+                )
+            })
+    }
+
+    pub fn find_project<'a>(
+        &self,
+        team: &'a TeamInfo,
+        name: &str,
+    ) -> Result<&'a ProjectInfo, String> {
         // Rechazar IDs numéricos
         if name.chars().all(|c| c.is_ascii_digit()) {
             let available: Vec<&str> = team.projects.iter().map(|p| p.name.as_str()).collect();
@@ -267,8 +305,7 @@ impl LinearMeta {
             .iter()
             .find(|p| p.name.eq_ignore_ascii_case(name))
             .ok_or_else(|| {
-                let available: Vec<&str> =
-                    team.projects.iter().map(|p| p.name.as_str()).collect();
+                let available: Vec<&str> = team.projects.iter().map(|p| p.name.as_str()).collect();
                 format!(
                     "Project \"{name}\" not found. Available: {}",
                     available.join(", ")
@@ -347,6 +384,11 @@ fn parse_labels(data: &Value) -> Result<Vec<LabelInfo>, String> {
             Some(LabelInfo {
                 id: l.get("id")?.as_str()?.to_string(),
                 name: l.get("name")?.as_str()?.to_string(),
+                team_key: l
+                    .get("team")
+                    .and_then(|t| t.get("key"))
+                    .and_then(|k| k.as_str())
+                    .map(ToString::to_string),
             })
         })
         .collect())
@@ -422,7 +464,10 @@ mod tests {
             comma_count <= 9,
             "Should show at most 10 labels (9 commas), got {comma_count} commas: {err}"
         );
-        assert!(err.contains("Closest (of"), "Should show total count: {err}");
+        assert!(
+            err.contains("Closest (of"),
+            "Should show total count: {err}"
+        );
     }
 
     // ERR-24: label completamente inventado
@@ -453,6 +498,67 @@ mod tests {
         let meta = meta_from_fixture();
         let label = meta.find_label("tokamak").unwrap();
         assert_eq!(label.name, "tokamak");
+    }
+
+    #[test]
+    fn test_find_label_for_team_prefers_matching_team() {
+        let tool_team = TeamInfo {
+            id: "team-tool".to_string(),
+            key: "TOOL".to_string(),
+            name: "Tools".to_string(),
+            states: vec![],
+            projects: vec![],
+        };
+        let prod_team = TeamInfo {
+            id: "team-prod".to_string(),
+            key: "PROD".to_string(),
+            name: "Products".to_string(),
+            states: vec![],
+            projects: vec![],
+        };
+        let meta = LinearMeta {
+            teams: vec![tool_team.clone(), prod_team.clone()],
+            labels: vec![
+                LabelInfo {
+                    id: "label-tool".to_string(),
+                    name: "mvp".to_string(),
+                    team_key: Some("TOOL".to_string()),
+                },
+                LabelInfo {
+                    id: "label-prod".to_string(),
+                    name: "mvp".to_string(),
+                    team_key: Some("PROD".to_string()),
+                },
+            ],
+        };
+
+        let label = meta.find_label_for_team(&prod_team, "mvp").unwrap();
+        assert_eq!(label.id, "label-prod");
+
+        let label = meta.find_label_for_team(&tool_team, "mvp").unwrap();
+        assert_eq!(label.id, "label-tool");
+    }
+
+    #[test]
+    fn test_find_label_for_team_rejects_other_team_match() {
+        let prod_team = TeamInfo {
+            id: "team-prod".to_string(),
+            key: "PROD".to_string(),
+            name: "Products".to_string(),
+            states: vec![],
+            projects: vec![],
+        };
+        let meta = LinearMeta {
+            teams: vec![prod_team.clone()],
+            labels: vec![LabelInfo {
+                id: "label-tool".to_string(),
+                name: "mvp".to_string(),
+                team_key: Some("TOOL".to_string()),
+            }],
+        };
+
+        let err = meta.find_label_for_team(&prod_team, "mvp").unwrap_err();
+        assert!(err.contains("team PROD"), "{err}");
     }
 
     // Label case-insensitive
@@ -662,7 +768,9 @@ mod tests {
     #[test]
     fn test_classify_401() {
         let result = classify_http_status(401, 0, 3);
-        assert!(matches!(result, HttpAction::Error(ref msg) if msg.contains("Authentication failed")));
+        assert!(
+            matches!(result, HttpAction::Error(ref msg) if msg.contains("Authentication failed"))
+        );
     }
 
     // ERR-51: 500 server error — reintenta, luego error
