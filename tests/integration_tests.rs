@@ -92,7 +92,7 @@ fn integration_concurrent_list() {
 fn integration_filter_flag_rejected() {
     let (code, _stdout, stderr) = run_lql(&["list", "--filter", "backlog"]);
     assert_ne!(code, 0);
-    assert!(stderr.contains("--filter no existe"), "stderr: {stderr}");
+    assert!(stderr.contains("--filter does not exist"), "stderr: {stderr}");
 }
 
 #[test]
@@ -203,5 +203,9 @@ fn integration_context() {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(output.status.success());
-    assert!(stdout.contains("TOOL"), "stdout: {stdout}");
+    // ~/code/brand/lql may or may not match context-map depending on config
+    assert!(
+        stdout.contains("Context:"),
+        "Should print context header: {stdout}"
+    );
 }
