@@ -27,7 +27,7 @@ pub fn normalize_relation_type(input: &str) -> Result<NormalizedRelation, String
             invert: true,
             display: "blocked-by",
         }),
-        "related" => Ok(NormalizedRelation {
+        "related" | "relates" => Ok(NormalizedRelation {
             api_type: "related",
             invert: false,
             display: "related",
@@ -257,5 +257,44 @@ mod tests {
         assert!(normalize_relation_type("Blocks").is_ok());
         assert!(normalize_relation_type("RELATED").is_ok());
         assert!(normalize_relation_type("Blocked-By").is_ok());
+    }
+
+    // ===================================================================
+    // Agentic experience tests — fixtures from real Claude Code sessions.
+    // ===================================================================
+
+    // --- AX-09: `relates` → should normalize to `related` ---
+    // Real: 'error: Unknown relation type "relates"'
+    #[test]
+    fn test_normalize_relates_to_related() {
+        let r = normalize_relation_type("relates").unwrap();
+        assert_eq!(r.api_type, "related");
+        assert!(!r.invert);
+    }
+
+    // --- AX-10: `lql relate PROD-834 PROD-833 blocked-by` ---
+    // Reordering happens in middleware::normalize_args (pre-clap).
+    // This test verifies the end-to-end result after middleware.
+    #[test]
+    fn test_relate_reorder_from_to_type() {
+        use crate::cli::Cli;
+        use crate::middleware;
+        use clap::Parser;
+
+        let raw = vec![
+            "lql".to_string(), "relate".to_string(),
+            "PROD-834".to_string(), "PROD-833".to_string(), "blocked-by".to_string(),
+        ];
+        let fixed = middleware::normalize_args(&raw).expect("should reorder");
+        let cli = Cli::try_parse_from(&fixed).unwrap();
+        if let crate::cli::Command::Relate(opts) = cli.command {
+            let norm = normalize_relation_type(&opts.relation_type).unwrap();
+            assert_eq!(norm.api_type, "blocks");
+            assert!(norm.invert);
+            assert_eq!(opts.from, "PROD-834");
+            assert_eq!(opts.to, "PROD-833");
+        } else {
+            panic!("Expected Relate command");
+        }
     }
 }

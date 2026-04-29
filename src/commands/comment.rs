@@ -41,7 +41,7 @@ pub fn run(config: &Config, opts: &CommentOpts) -> Result<(), String> {
     Ok(())
 }
 
-/// Resuelve el body del comentario: inline > fichero > reader (stdin)
+/// Resuelve el body del comentario: inline > --body flag > fichero > reader (stdin)
 /// Extraído para ser testeable sin stdin real
 pub fn resolve_body(
     opts: &CommentOpts,
@@ -49,6 +49,8 @@ pub fn resolve_body(
     is_terminal: bool,
 ) -> Result<String, String> {
     let body = if let Some(ref text) = opts.body {
+        text.clone()
+    } else if let Some(ref text) = opts.body_flag {
         text.clone()
     } else if let Some(ref path) = opts.file {
         std::fs::read_to_string(path)
@@ -82,6 +84,7 @@ mod tests {
         CommentOpts {
             issue_id: "PROD-1".to_string(),
             body: Some(body.to_string()),
+            body_flag: None,
             file: None,
         }
     }
@@ -90,6 +93,7 @@ mod tests {
         CommentOpts {
             issue_id: "PROD-1".to_string(),
             body: None,
+            body_flag: None,
             file: None,
         }
     }

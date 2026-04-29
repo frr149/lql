@@ -7,19 +7,21 @@ mod format;
 mod middleware;
 mod queries;
 
+use clap::Parser;
 use std::io::IsTerminal;
 use std::process;
 
 fn main() {
     let raw_args: Vec<String> = std::env::args().collect();
-    let requested_json = raw_args.iter().any(|arg| arg == "--json");
+    let effective_args = middleware::normalize_args(&raw_args).unwrap_or(raw_args.clone());
+    let requested_json = effective_args.iter().any(|arg| arg == "--json");
     let machine_mode = requested_json || !std::io::stderr().is_terminal();
-    if let Err(msg) = middleware::check_common_mistakes(&raw_args) {
+    if let Err(msg) = middleware::check_common_mistakes(&effective_args) {
         print_error(&msg, machine_mode);
         process::exit(1);
     }
 
-    let args = cli::parse();
+    let args = cli::Cli::parse_from(&effective_args);
     cli::set_machine_mode(machine_mode || cli::command_prefers_machine_mode(&args.command));
     let config = match config::load() {
         Ok(c) => c,
