@@ -10,12 +10,13 @@ pub fn run(config: &Config, opts: &CreateOpts) -> Result<(), String> {
     let meta = LinearMeta::fetch(&client)?;
 
     // Resolver team/project/label
+    let title = opts.resolved_title()?;
     let (team_key, ctx_project, ctx_label) = config.resolve_team(opts.team.as_deref(), &cwd)?;
     let team = meta.find_team(&team_key)?;
 
     // Construir input de la mutación
     let mut input = serde_json::json!({
-        "title": opts.title,
+        "title": title,
         "teamId": team.id,
     });
 
@@ -72,7 +73,7 @@ pub fn run(config: &Config, opts: &CreateOpts) -> Result<(), String> {
 
     // Detección de duplicados
     if !opts.force {
-        check_duplicates(&client, &opts.title)?;
+        check_duplicates(&client, title)?;
     }
 
     // Crear

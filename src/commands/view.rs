@@ -13,6 +13,8 @@ pub fn run(config: &Config, opts: &ViewOpts) -> Result<(), String> {
             "{}",
             serde_json::to_string_pretty(&issue).unwrap_or_default()
         );
+    } else if opts.comments {
+        println!("{}", format::format_comments(&issue));
     } else {
         println!("{}", format::format_view(&issue));
     }

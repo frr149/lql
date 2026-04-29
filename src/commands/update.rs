@@ -30,11 +30,23 @@ pub fn run(config: &Config, opts: &UpdateOpts) -> Result<(), String> {
     let mut input = serde_json::json!({});
     let mut has_changes = false;
 
+    // Move to different team
+    if let Some(ref target_team_key) = opts.team {
+        let target_team = meta.find_team(target_team_key)?;
+        input["teamId"] = serde_json::json!(target_team.id);
+        has_changes = true;
+    }
+
     // Estado
     let mut new_state_name = old_state.to_string();
     if let Some(ref state_str) = opts.state {
         let state_type = cli::normalize_state(state_str, &config.state_aliases);
-        if let Some(state) = meta.find_state(team, &state_type) {
+        let effective_team = if let Some(ref target_key) = opts.team {
+            meta.find_team(target_key)?
+        } else {
+            team
+        };
+        if let Some(state) = meta.find_state(effective_team, &state_type) {
             input["stateId"] = serde_json::json!(state.id);
             new_state_name = state.name.clone();
             has_changes = true;
@@ -115,7 +127,7 @@ pub fn run(config: &Config, opts: &UpdateOpts) -> Result<(), String> {
 
     if !has_changes {
         return Err(
-            "No changes specified. Use --state, --priority, --label, --title, --project, or --due."
+            "No changes specified. Use --state, --priority, --label, --title, --project, --team, or --due."
                 .to_string(),
         );
     }

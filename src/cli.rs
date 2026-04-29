@@ -23,6 +23,7 @@ pub enum Command {
     /// Update an existing issue
     Update(UpdateOpts),
     /// View issue details
+    #[command(alias = "show", alias = "get")]
     View(ViewOpts),
     /// Search issues by text
     Search(SearchOpts),
@@ -103,7 +104,11 @@ pub struct ListOpts {
 #[derive(Parser, Debug)]
 pub struct CreateOpts {
     /// Issue title
-    pub title: String,
+    pub title: Option<String>,
+
+    /// Issue title (alias for positional — agents prefer named flags)
+    #[arg(long = "title", hide = true)]
+    pub title_flag: Option<String>,
 
     /// Inline description
     #[arg(short, long)]
@@ -168,6 +173,10 @@ pub struct UpdateOpts {
     #[arg(long)]
     pub project: Option<String>,
 
+    /// Move to a different team
+    #[arg(long)]
+    pub team: Option<String>,
+
     /// Add label (resolved within the issue team)
     #[arg(long)]
     pub label: Option<Vec<String>>,
@@ -197,6 +206,10 @@ pub struct UpdateOpts {
 pub struct ViewOpts {
     /// Issue ID (e.g. PROD-587)
     pub issue_id: String,
+
+    /// Show comments
+    #[arg(long)]
+    pub comments: bool,
 
     /// Output as JSON
     #[arg(long)]
@@ -232,6 +245,10 @@ pub struct CommentOpts {
 
     /// Comment text
     pub body: Option<String>,
+
+    /// Comment text (alias for positional — agents prefer named flags)
+    #[arg(long = "body", hide = true)]
+    pub body_flag: Option<String>,
 
     /// Comment from file
     #[arg(long)]
@@ -415,8 +432,14 @@ pub struct EpicAddOpts {
     pub issue_ids: Vec<String>,
 }
 
-pub fn parse() -> Cli {
-    Cli::parse()
+impl CreateOpts {
+    pub fn resolved_title(&self) -> Result<&str, String> {
+        match (&self.title, &self.title_flag) {
+            (Some(t), _) => Ok(t),
+            (None, Some(t)) => Ok(t),
+            (None, None) => Err("Missing title. Use: lql create \"Title\" or lql create --title \"Title\"".to_string()),
+        }
+    }
 }
 
 pub fn set_machine_mode(enabled: bool) {
@@ -998,6 +1021,141 @@ mod tests {
         assert_eq!(normalize_sort("updatedAt"), "updatedAt");
         assert_eq!(normalize_sort("created"), "createdAt");
         assert_eq!(normalize_sort("createdAt"), "createdAt");
+    }
+
+    // ===================================================================
+    // Agentic experience tests — fixtures from real Claude Code sessions.
+    // Each test reproduces a real invocation that failed in production.
+    // ===================================================================
+
+    // --- AX-01: `lql show PROD-911` → should parse as View ---
+    // Real: "error: unrecognized subcommand 'show'"
+    #[test]
+    fn test_show_alias_for_view() {
+        let cli = Cli::try_parse_from(["lql", "show", "PROD-911"]).unwrap();
+        if let Command::View(opts) = cli.command {
+            assert_eq!(opts.issue_id, "PROD-911");
+        } else {
+            panic!("Expected View command from 'show' alias");
+        }
+    }
+
+    // --- AX-02: `lql get PROD-86` → should parse as View ---
+    // Real: "error: unrecognized subcommand 'get'"
+    #[test]
+    fn test_get_alias_for_view() {
+        let cli = Cli::try_parse_from(["lql", "get", "PROD-86"]).unwrap();
+        if let Command::View(opts) = cli.command {
+            assert_eq!(opts.issue_id, "PROD-86");
+        } else {
+            panic!("Expected View command from 'get' alias");
+        }
+    }
+
+    // --- AX-03: `lql show PROD-911 --json` → should work with flags ---
+    #[test]
+    fn test_show_alias_with_json() {
+        let cli = Cli::try_parse_from(["lql", "show", "PROD-911", "--json"]).unwrap();
+        if let Command::View(opts) = cli.command {
+            assert!(opts.json);
+        } else {
+            panic!("Expected View command from 'show' alias");
+        }
+    }
+
+    // --- AX-04: `lql create --title "Epic: ..." --team PROD` ---
+    // Real: "error: unexpected argument '--title' found"
+    #[test]
+    fn test_create_title_as_flag() {
+        let cli = Cli::try_parse_from([
+            "lql", "create", "--title",
+            "Epic: Pre-locale — preparar ETL para multi-locale sin romper ES",
+            "--team", "PROD",
+        ]).unwrap();
+        if let Command::Create(opts) = cli.command {
+            assert_eq!(opts.resolved_title().unwrap(), "Epic: Pre-locale — preparar ETL para multi-locale sin romper ES");
+            assert_eq!(opts.team.as_deref(), Some("PROD"));
+        } else {
+            panic!("Expected Create command");
+        }
+    }
+
+    // --- AX-05: `lql create --team QIN --title "Migrar names.db"` ---
+    // Real: same --title error, different team position
+    #[test]
+    fn test_create_title_flag_before_team() {
+        let cli = Cli::try_parse_from([
+            "lql", "create", "--team", "QIN",
+            "--title", "Migrar names.db y artefactos v1 a data/",
+        ]).unwrap();
+        if let Command::Create(opts) = cli.command {
+            assert_eq!(opts.resolved_title().unwrap(), "Migrar names.db y artefactos v1 a data/");
+        } else {
+            panic!("Expected Create command");
+        }
+    }
+
+    // AX-04b: positional title still works
+    #[test]
+    fn test_create_positional_title_still_works() {
+        let cli = Cli::try_parse_from(["lql", "create", "My title"]).unwrap();
+        if let Command::Create(opts) = cli.command {
+            assert_eq!(opts.resolved_title().unwrap(), "My title");
+        } else {
+            panic!("Expected Create command");
+        }
+    }
+
+    // AX-04c: no title at all → error
+    #[test]
+    fn test_create_no_title_error() {
+        let cli = Cli::try_parse_from(["lql", "create", "--team", "PROD"]).unwrap();
+        if let Command::Create(opts) = cli.command {
+            assert!(opts.resolved_title().is_err());
+        } else {
+            panic!("Expected Create command");
+        }
+    }
+
+    // --- AX-06: `lql update PRIV-32 --team PROD` → move issue ---
+    // Real: "error: unexpected argument '--team' found"
+    #[test]
+    fn test_update_team_flag() {
+        let cli = Cli::try_parse_from(["lql", "update", "PRIV-32", "--team", "PROD"]).unwrap();
+        if let Command::Update(opts) = cli.command {
+            assert_eq!(opts.issue_id, "PRIV-32");
+            assert_eq!(opts.team.as_deref(), Some("PROD"));
+        } else {
+            panic!("Expected Update command with --team");
+        }
+    }
+
+    // --- AX-07: `lql view PROD-824 --comments` → show comments ---
+    // Real: "error: unexpected argument '--comments' found"
+    #[test]
+    fn test_view_comments_flag() {
+        let cli = Cli::try_parse_from(["lql", "view", "PROD-824", "--comments"]).unwrap();
+        if let Command::View(opts) = cli.command {
+            assert!(opts.comments);
+            assert_eq!(opts.issue_id, "PROD-824");
+        } else {
+            panic!("Expected View command with --comments");
+        }
+    }
+
+    // --- AX-08: `lql comment PROD-926 --body "text"` → body as flag ---
+    // Real: "error: unexpected argument '--body' found"
+    #[test]
+    fn test_comment_body_as_flag() {
+        let cli = Cli::try_parse_from([
+            "lql", "comment", "PROD-926", "--body", "Investigado, el problema es X",
+        ]).unwrap();
+        if let Command::Comment(opts) = cli.command {
+            assert_eq!(opts.body_flag.as_deref(), Some("Investigado, el problema es X"));
+            assert!(opts.body.is_none());
+        } else {
+            panic!("Expected Comment command");
+        }
     }
 }
 

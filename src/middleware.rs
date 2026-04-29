@@ -1,3 +1,35 @@
+fn looks_like_issue_id(s: &str) -> bool {
+    let Some((team, num)) = s.split_once('-') else {
+        return false;
+    };
+    !team.is_empty()
+        && team.chars().all(|c| c.is_ascii_uppercase())
+        && num.parse::<u32>().is_ok()
+}
+
+/// Reorder args for known patterns where agents swap positional arguments.
+/// Returns a new Vec if reordering was needed, None otherwise.
+pub fn normalize_args(args: &[String]) -> Option<Vec<String>> {
+    if args.len() < 5 {
+        return None;
+    }
+    // `relate ISSUE-ID ISSUE-ID TYPE` → `relate ISSUE-ID TYPE ISSUE-ID`
+    if args[1] == "relate"
+        && looks_like_issue_id(&args[2])
+        && looks_like_issue_id(&args[3])
+        && !looks_like_issue_id(&args[4])
+    {
+        let mut fixed = args.to_vec();
+        fixed.swap(3, 4);
+        eprintln!(
+            "ℹ Reordered: relate {} {} {} → relate {} {} {}",
+            args[2], args[3], args[4], fixed[2], fixed[3], fixed[4]
+        );
+        return Some(fixed);
+    }
+    None
+}
+
 /// Pre-clap middleware: intercept common flag mistakes and suggest the correct alternative.
 /// Principle: adapt non-destructive input, reject destructive input, always inform.
 pub fn check_common_mistakes(args: &[String]) -> Result<(), String> {
@@ -147,5 +179,46 @@ mod tests {
         let err = check_common_mistakes(&args(&["lql", "list", "--relates-to", "PROD-1"]))
             .unwrap_err();
         assert!(err.contains("--relates-to does not exist"), "{err}");
+    }
+
+    // ===================================================================
+    // Agentic experience: arg reordering
+    // ===================================================================
+
+    #[test]
+    fn test_looks_like_issue_id() {
+        assert!(looks_like_issue_id("PROD-587"));
+        assert!(looks_like_issue_id("TOOL-33"));
+        assert!(looks_like_issue_id("KC-1"));
+        assert!(!looks_like_issue_id("blocks"));
+        assert!(!looks_like_issue_id("blocked-by"));
+        assert!(!looks_like_issue_id("related"));
+        assert!(!looks_like_issue_id("prod-587")); // lowercase team → not an ID
+        assert!(!looks_like_issue_id("123"));
+        assert!(!looks_like_issue_id(""));
+    }
+
+    // AX-10: `relate PROD-834 PROD-833 blocked-by` → reorder to `relate PROD-834 blocked-by PROD-833`
+    #[test]
+    fn test_normalize_args_relate_reorder() {
+        let input = args(&["lql", "relate", "PROD-834", "PROD-833", "blocked-by"]);
+        let result = normalize_args(&input).unwrap();
+        assert_eq!(result[2], "PROD-834");
+        assert_eq!(result[3], "blocked-by");
+        assert_eq!(result[4], "PROD-833");
+    }
+
+    // Correct order should not be reordered
+    #[test]
+    fn test_normalize_args_correct_order_unchanged() {
+        let input = args(&["lql", "relate", "PROD-834", "blocked-by", "PROD-833"]);
+        assert!(normalize_args(&input).is_none());
+    }
+
+    // Non-relate commands not affected
+    #[test]
+    fn test_normalize_args_non_relate_unchanged() {
+        let input = args(&["lql", "list", "--team", "PROD", "--limit", "5"]);
+        assert!(normalize_args(&input).is_none());
     }
 }

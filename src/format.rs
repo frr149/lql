@@ -273,6 +273,47 @@ pub fn format_view(issue: &Value) -> String {
     lines.join("\n")
 }
 
+/// Formatea los comentarios de una issue
+pub fn format_comments(issue: &Value) -> String {
+    let comments = issue
+        .get("comments")
+        .and_then(|c| c.get("nodes"))
+        .and_then(|n| n.as_array());
+
+    let Some(comments) = comments else {
+        return "No comments.".to_string();
+    };
+
+    if comments.is_empty() {
+        return "No comments.".to_string();
+    }
+
+    let mut lines = Vec::new();
+    for (i, comment) in comments.iter().enumerate() {
+        let author = comment
+            .get("user")
+            .and_then(|u| u.get("name"))
+            .and_then(|n| n.as_str())
+            .unwrap_or("Unknown");
+        let created = comment
+            .get("createdAt")
+            .and_then(|c| c.as_str())
+            .unwrap_or("");
+        let body = comment
+            .get("body")
+            .and_then(|b| b.as_str())
+            .unwrap_or("");
+
+        if i > 0 {
+            lines.push("\u{2500}\u{2500}\u{2500}".to_string());
+        }
+        lines.push(format!("{author} ({created}):"));
+        lines.push(body.to_string());
+    }
+
+    lines.join("\n")
+}
+
 /// Convierte una issue del API a un objeto plano para TOON (campos uniformes, sin nesting)
 pub fn format_issue_toon_obj(issue: &Value) -> Value {
     let id = issue.get("identifier").and_then(|v| v.as_str()).unwrap_or("");
