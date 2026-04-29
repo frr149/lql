@@ -27,7 +27,7 @@ pub fn normalize_relation_type(input: &str) -> Result<NormalizedRelation, String
             invert: true,
             display: "blocked-by",
         }),
-        "related" | "relates" => Ok(NormalizedRelation {
+        "related" | "relates" | "relates-to" | "relatesto" => Ok(NormalizedRelation {
             api_type: "related",
             invert: false,
             display: "related",
@@ -296,5 +296,14 @@ mod tests {
         } else {
             panic!("Expected Relate command");
         }
+    }
+
+    // --- AX-12: `relates-to` → should normalize to `related` ---
+    // Real: 'error: Unknown relation type "relates-to"'
+    #[test]
+    fn test_normalize_relates_to_hyphenated() {
+        let r = normalize_relation_type("relates-to").unwrap();
+        assert_eq!(r.api_type, "related");
+        assert!(!r.invert);
     }
 }
