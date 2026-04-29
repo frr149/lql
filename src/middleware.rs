@@ -7,14 +7,30 @@ fn looks_like_issue_id(s: &str) -> bool {
         && num.parse::<u32>().is_ok()
 }
 
-/// Reorder args for known patterns where agents swap positional arguments.
-/// Returns a new Vec if reordering was needed, None otherwise.
+/// Reorder/fix args for known patterns where agents get positional arguments wrong.
+/// Returns a new Vec if normalization was needed, None otherwise.
 pub fn normalize_args(args: &[String]) -> Option<Vec<String>> {
-    if args.len() < 5 {
+    if args.len() < 2 || args[1] != "relate" {
         return None;
     }
+
+    // `relate ISSUE-ID ISSUE-ID` (no type) → insert "related" as default
+    if args.len() == 4
+        && looks_like_issue_id(&args[2])
+        && looks_like_issue_id(&args[3])
+    {
+        let mut fixed = args[..3].to_vec();
+        fixed.push("related".to_string());
+        fixed.push(args[3].clone());
+        eprintln!(
+            "ℹ Default relation: relate {} {} → relate {} related {}",
+            args[2], args[3], args[2], args[3]
+        );
+        return Some(fixed);
+    }
+
     // `relate ISSUE-ID ISSUE-ID TYPE` → `relate ISSUE-ID TYPE ISSUE-ID`
-    if args[1] == "relate"
+    if args.len() >= 5
         && looks_like_issue_id(&args[2])
         && looks_like_issue_id(&args[3])
         && !looks_like_issue_id(&args[4])
@@ -220,5 +236,16 @@ mod tests {
     fn test_normalize_args_non_relate_unchanged() {
         let input = args(&["lql", "list", "--team", "PROD", "--limit", "5"]);
         assert!(normalize_args(&input).is_none());
+    }
+
+    // AX-11: `relate PROD-926 PROD-938` (no type) → insert "related" as default
+    // Real: "the following required arguments were not provided: <TO>"
+    #[test]
+    fn test_normalize_args_relate_default_type() {
+        let input = args(&["lql", "relate", "PROD-926", "PROD-938"]);
+        let result = normalize_args(&input).unwrap();
+        assert_eq!(result[2], "PROD-926");
+        assert_eq!(result[3], "related");
+        assert_eq!(result[4], "PROD-938");
     }
 }
