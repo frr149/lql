@@ -1,30 +1,28 @@
 # CLAUDE.md — lql (Linear Query Language)
 
-## Proyecto
+## Project
 
-CLI en Rust para gestionar issues de Linear. Reemplaza la CLI oficial (`linear`), el MCP de Linear, y `linear-curator`. Diseñada para ser consumida por LLMs (output compacto, zero flags obligatorios, tolerancia a errores de interfaz).
+Rust CLI for managing Linear issues. Designed for LLM consumption: compact output, zero mandatory flags, tolerant input normalization.
 
-**PRD completo**: `docs/PRD.md`
-
-## Comandos
+## Commands
 
 ```bash
-cargo build                # compilar
-cargo run -- list          # ejecutar un comando
+cargo build                # build
+cargo run -- list          # run a command
 cargo test                 # tests
 cargo build --release      # release build
 ```
 
 ## Stack
 
-- Rust (edición 2024)
-- clap (derive) — CLI parsing con flag aliases
-- reqwest (blocking) — HTTP para Linear API, OpenRouter, Telegram
-- serde + serde_json — JSON (escapado correcto by construction)
+- Rust (edition 2024)
+- clap (derive) — CLI parsing with flag aliases
+- reqwest (blocking) — HTTP for Linear API, OpenRouter, Telegram
+- serde + serde_json — JSON (correct escaping by construction)
 - toml — config parsing
 - fs2 — file locking (corrections.jsonl)
 
-## Arquitectura
+## Architecture
 
 ```
 src/
@@ -57,60 +55,57 @@ src/
 
 ## Language
 
-All user-facing text (CLI help, error messages, log messages) MUST be in English. Internal code comments may be in Spanish per global CLAUDE.md rules, but anything that appears in `--help`, `stderr`, or `stdout` is English only.
+All user-facing text (CLI help, error messages, log messages) MUST be in English. Anything that appears in `--help`, `stderr`, or `stdout` is English only.
 
-## Principios
+## Principles
 
-1. **Linear API directo** — NUNCA usar la CLI `linear` ni el MCP. Solo GraphQL vía reqwest.
-2. **serde para todo JSON** — NUNCA interpolar strings en queries GraphQL. Usar variables GraphQL + `serde_json::json!()`.
-3. **Output compacto** — ~25 tokens/issue. Formato: `ID [State] labels — Title (age, due)`.
-4. **Tolerancia de interfaz** — `--status` → `--state`, `Todo` → `unstarted`, `--priority urgent` → `--priority 1`. Normalizar, no rechazar.
-5. **Sin cache en disco** — fetchear de Linear en cada ejecución (~200ms). Sin divergencia posible.
-6. **Sin async** — todo blocking. Un CLI no necesita concurrencia interna.
+1. **Direct Linear API** — Only GraphQL via reqwest. Never use the `linear` CLI or MCP.
+2. **serde for all JSON** — Never interpolate strings into GraphQL queries. Use GraphQL variables + `serde_json::json!()`.
+3. **Compact output** — ~25 tokens/issue. Format: `ID [State] labels — Title (age, due)`.
+4. **Input tolerance** — `--status` → `--state`, `Todo` → `unstarted`, `--priority urgent` → `--priority 1`. Normalize, never reject.
+5. **No disk cache** — Fetch from Linear on every run (~200ms). No divergence possible.
+6. **No async** — All blocking. A CLI doesn't need internal concurrency.
 
 ## Config
 
-Fichero: `~/.config/lql/config.toml`
+File: `~/.config/lql/config.toml`
 
-Contiene:
+Sections:
 
-- `[auth]` — referencia a 1Password para API key
+- `[auth]` — 1Password reference for API key
 - `[defaults]` — sort, states, limit
-- `[context-map]` — directorio → team/project/label
+- `[context-map]` — directory → team/project/label
 - `[state-aliases]` — Todo→unstarted, Done→completed, etc.
 - `[priority-aliases]` — urgent→1, high→2, etc.
-- `[curator]` — LLM config para clasificación
-- `[telegram]` — bot token y chat ID refs
+- `[curator]` — LLM config for classification
+- `[telegram]` — bot token and chat ID refs
 
-Ver `docs/PRD.md` para el TOML completo.
-
-## Datos locales
+## Local data
 
 ```
 ~/.local/share/lql/
-└── corrections.jsonl    # few-shot examples para el clasificador (append-only)
+└── corrections.jsonl    # few-shot examples for the classifier (append-only)
 ```
 
-Un solo fichero. Pending reviews viven en Linear (comentarios del curator), no en disco.
+Pending reviews live in Linear (curator comments), not on disk.
 
 ## Linear API
 
 - Endpoint: `https://api.linear.app/graphql`
-- Auth: `Authorization: <api-key>` (sin Bearer)
-- API key: `op read "op://FRR DEV/Linear/api-key"`
-- Rate limit: ~1500 req/h por key, compartido entre agentes
-- Retry: exponential backoff en 429 (2s, 4s, 8s, max 3 retries)
+- Auth: `Authorization: <api-key>` (no Bearer prefix)
+- API key: via 1Password (`op read`)
+- Rate limit: ~1500 req/h per key
+- Retry: exponential backoff on 429 (2s, 4s, 8s, max 3 retries)
 
-## Cross-compile para wuwei
+## Cross-compile (Linux x86_64)
 
 ```bash
 rustup target add x86_64-unknown-linux-musl
 cargo build --release --target x86_64-unknown-linux-musl
-scp target/x86_64-unknown-linux-musl/release/lql wuwei.frr.dev:~/.local/bin/
 ```
 
-## Fases
+## Phases
 
 1. **Core CLI** — list, create, update, view, search, comment, relate, labels, doctor
-2. **Curator + Review** — curate, review, summary, triage, Telegram
-3. **Integración** — skill `/issues`, memento, Ansible role, archivar linear-curator
+2. **Curator + Review** — curate, review, summary, triage, Telegram notifications
+3. **Integration** — external tooling, deployment
