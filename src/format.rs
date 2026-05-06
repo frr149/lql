@@ -699,16 +699,16 @@ mod tests {
 
     fn sample_issue() -> Value {
         serde_json::json!({
-            "identifier": "PROD-587",
-            "title": "Importar sesiones desde backup del NAS",
+            "identifier": "TEST-101",
+            "title": "Import sessions from backup",
             "state": {"name": "Backlog", "type": "backlog"},
-            "labels": {"nodes": [{"name": "acme"}]},
+            "labels": {"nodes": [{"name": "frontend"}]},
             "project": {"name": "Acme"},
-            "team": {"key": "PROD"},
+            "team": {"key": "TEST"},
             "priority": 2,
             "createdAt": "2026-03-11T10:00:00Z",
             "dueDate": "2026-03-11",
-            "url": "https://linear.app/frr149/issue/PROD-587"
+            "url": "https://linear.app/example-org/issue/TEST-101"
         })
     }
 
@@ -717,10 +717,10 @@ mod tests {
     fn test_format_compact_structure() {
         let issue = sample_issue();
         let output = format_issue_compact(&issue);
-        assert!(output.starts_with("PROD-587 [Backlog]"));
-        assert!(output.contains("acme"));
+        assert!(output.starts_with("TEST-101 [Backlog]"));
+        assert!(output.contains("frontend"));
         assert!(output.contains("\u{2014}")); // em-dash
-        assert!(output.contains("Importar sesiones"));
+        assert!(output.contains("Import sessions"));
     }
 
     // ERR-59: JSONL válido
@@ -729,9 +729,9 @@ mod tests {
         let issue = sample_issue();
         let json_str = format_issue_json(&issue);
         let parsed: Value = serde_json::from_str(&json_str).unwrap();
-        assert_eq!(parsed["id"], "PROD-587");
+        assert_eq!(parsed["id"], "TEST-101");
         assert_eq!(parsed["state"], "backlog");
-        assert_eq!(parsed["labels"][0], "acme");
+        assert_eq!(parsed["labels"][0], "frontend");
     }
 
     // ERR-60: sin ANSI
@@ -762,7 +762,7 @@ mod tests {
     fn test_format_created() {
         let issue = sample_issue();
         let output = format_created(&issue);
-        assert!(output.starts_with("✓ PROD-587 created"));
+        assert!(output.starts_with("✓ TEST-101 created"));
         assert!(output.contains("[Backlog]"));
         assert!(output.contains("linear.app"));
     }
@@ -770,8 +770,8 @@ mod tests {
     // ERR-58: update output
     #[test]
     fn test_format_updated() {
-        let output = format_updated("PROD-587", "Backlog", "Done");
-        assert_eq!(output, "✓ PROD-587 Backlog → Done");
+        let output = format_updated("TEST-101", "Backlog", "Done");
+        assert_eq!(output, "✓ TEST-101 Backlog → Done");
     }
 
     #[test]
@@ -780,7 +780,7 @@ mod tests {
             "slugId": "pre-locale",
             "name": "Pre-locale",
             "status": "planned",
-            "url": "https://linear.app/frr149/initiative/pre-locale"
+            "url": "https://linear.app/example-org/initiative/pre-locale"
         });
         let output = format_epic_created(&epic);
         assert!(output.starts_with("✓ pre-locale created [Planned]"));
@@ -811,14 +811,14 @@ mod toon_tests {
     fn test_toon_uniform_array() {
         // Con campos uniformes (sin arrays anidados), TOON produce formato tabular
         let issues = serde_json::json!([
-            {"id": "PROD-587", "state": "backlog", "labels": "acme", "title": "Importar sesiones", "age": "14d", "due": "overdue!"},
-            {"id": "PROD-515", "state": "started", "labels": "tokamak", "title": "Fix auth token", "age": "3d", "due": ""},
-            {"id": "PROD-529", "state": "backlog", "labels": "homelab", "title": "Mover media", "age": "4d", "due": "due:Mar 21"}
+            {"id": "TEST-101", "state": "backlog", "labels": "frontend", "title": "Import sessions", "age": "14d", "due": "overdue!"},
+            {"id": "TEST-102", "state": "started", "labels": "backend", "title": "Fix auth token", "age": "3d", "due": ""},
+            {"id": "TEST-103", "state": "backlog", "labels": "infra", "title": "Move assets to CDN", "age": "4d", "due": "due:Mar 21"}
         ]);
         let toon = toon_format::encode_default(&issues).unwrap();
         eprintln!("\n--- TOON UNIFORM ---\n{toon}\n--- END ---");
         assert!(toon.contains("id"));
-        assert!(toon.contains("PROD-587"));
+        assert!(toon.contains("TEST-101"));
     }
 
     #[test]
@@ -841,19 +841,19 @@ mod toon_tests {
 
     fn sample_view_issue_done() -> Value {
         serde_json::json!({
-            "identifier": "PROD-955",
-            "title": "SEO: add keyword to landing",
+            "identifier": "TEST-201",
+            "title": "Add search filter to dashboard",
             "state": {"name": "Done", "type": "completed"},
-            "labels": {"nodes": [{"name": "seo"}]},
+            "labels": {"nodes": [{"name": "frontend"}]},
             "project": null,
-            "team": {"key": "PROD"},
+            "team": {"key": "TEST"},
             "priority": 2,
             "createdAt": "2026-04-20T10:00:00Z",
             "startedAt": "2026-04-21T08:30:00Z",
             "completedAt": "2026-05-01T14:00:00Z",
             "updatedAt": "2026-05-01T14:00:00Z",
             "dueDate": null,
-            "url": "https://linear.app/frr149/issue/PROD-955",
+            "url": "https://linear.app/example-org/issue/TEST-201",
             "relations": {"nodes": []},
             "comments": {"nodes": []}
         })
@@ -861,19 +861,19 @@ mod toon_tests {
 
     fn sample_view_issue_backlog() -> Value {
         serde_json::json!({
-            "identifier": "TOOL-82",
+            "identifier": "TEST-301",
             "title": "Backlog issue without dates",
             "state": {"name": "Backlog", "type": "backlog"},
             "labels": {"nodes": []},
             "project": null,
-            "team": {"key": "TOOL"},
+            "team": {"key": "TEST"},
             "priority": 3,
             "createdAt": "2026-05-01T09:00:00Z",
             "startedAt": null,
             "completedAt": null,
             "updatedAt": "2026-05-01T09:00:00Z",
             "dueDate": null,
-            "url": "https://linear.app/frr149/issue/TOOL-82",
+            "url": "https://linear.app/example-org/issue/TEST-301",
             "relations": {"nodes": []},
             "comments": {"nodes": []}
         })
