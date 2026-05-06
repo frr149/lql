@@ -5,7 +5,7 @@
         {
           "id": "6b0c7b6d-d36c-465c-86b2-07b1207dfc61",
           "key": "KC",
-          "name": "KeepCoding",
+          "name": "Academy",
           "states": {
             "nodes": [
               {
@@ -250,11 +250,11 @@
               },
               {
                 "id": "3593d2ed-e7c5-4f64-8375-af5987d0272e",
-                "name": "Qinqin"
+                "name": "Phoenix"
               },
               {
                 "id": "25df6c56-057d-4751-8390-c03c1175f958",
-                "name": "Tokamak"
+                "name": "Reactor"
               }
             ]
           }
@@ -464,7 +464,7 @@
         {
           "id": "7e3d7ac9-563c-44d1-8b58-123d8097eca5",
           "key": "TOK",
-          "name": "Tokamak",
+          "name": "Reactor",
           "states": {
             "nodes": [
               {
@@ -515,7 +515,7 @@
               },
               {
                 "id": "706768c7-b9b0-468a-bcc7-1dcb0e307818",
-                "name": "Tokamak v2.0 \u2014 Multi-Harness"
+                "name": "Reactor v2.0 \u2014 Multi-Harness"
               },
               {
                 "id": "6d53014f-6b7d-4608-a4ec-6c83dc6625fa",
@@ -539,7 +539,7 @@
               },
               {
                 "id": "7d004e17-13ef-4b85-a079-38181564d182",
-                "name": "Tokamak v2.0 \u2014 Backend & Social"
+                "name": "Reactor v2.0 \u2014 Backend & Social"
               }
             ]
           }
@@ -850,7 +850,7 @@
         {
           "id": "279813d5-cceb-416c-b116-faf2cb3aa310",
           "key": "QIN",
-          "name": "qinqin",
+          "name": "phoenix",
           "states": {
             "nodes": [
               {
@@ -1055,11 +1055,11 @@
         },
         {
           "id": "d5914178-2535-4370-a8c9-9a7e8aa369c2",
-          "name": "qinqin"
+          "name": "phoenix"
         },
         {
           "id": "92c1c467-0b87-41b8-9c7d-b8fede2777e7",
-          "name": "tokamak"
+          "name": "reactor"
         },
         {
           "id": "5a2994ee-9b05-4d2c-9004-294c170a4afb",

@@ -356,7 +356,7 @@ mod tests {
     #[test]
     fn test_normalize_epic_ref_from_url() {
         assert_eq!(
-            normalize_epic_ref("https://linear.app/frr149/initiative/pre-locale/some-title"),
+            normalize_epic_ref("https://linear.app/example-org/initiative/pre-locale/some-title"),
             "pre-locale"
         );
     }
