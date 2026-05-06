@@ -208,7 +208,6 @@ pub fn format_view(issue: &Value) -> String {
         .and_then(|n| n.as_str())
         .unwrap_or("(none)");
 
-    let age = format_age(issue);
     let due = format_due(issue);
 
     let mut lines = Vec::new();
@@ -217,8 +216,17 @@ pub fn format_view(issue: &Value) -> String {
     ));
 
     let mut meta_parts = vec![format!("Team: {team}"), format!("Project: {project}")];
-    if !age.is_empty() {
-        meta_parts.push(format!("Created: {age}"));
+    if let Some(created) = extract_date(issue, "createdAt") {
+        meta_parts.push(format!("Created: {created}"));
+    }
+    if let Some(started) = extract_date(issue, "startedAt") {
+        meta_parts.push(format!("Started: {started}"));
+    }
+    if let Some(completed) = extract_date(issue, "completedAt") {
+        meta_parts.push(format!("Completed: {completed}"));
+    }
+    if let Some(updated) = extract_date(issue, "updatedAt") {
+        meta_parts.push(format!("Updated: {updated}"));
     }
     if !due.is_empty() {
         meta_parts.push(format!("Due: {due}"));
@@ -548,6 +556,14 @@ fn extract_labels(issue: &Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
+fn extract_date(issue: &Value, field: &str) -> Option<String> {
+    issue
+        .get(field)
+        .and_then(|v| v.as_str())
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.format("%Y-%m-%d").to_string())
+}
+
 fn calculate_age_days(issue: &Value) -> i64 {
     issue
         .get("createdAt")
@@ -821,5 +837,92 @@ mod toon_tests {
         eprintln!("\n--- TOON FROM FIXTURE ---\n{toon}\n--- END ---");
         assert!(!toon.is_empty());
         assert!(toon.contains("TOOL-"));
+    }
+
+    fn sample_view_issue_done() -> Value {
+        serde_json::json!({
+            "identifier": "PROD-955",
+            "title": "SEO: add keyword to landing",
+            "state": {"name": "Done", "type": "completed"},
+            "labels": {"nodes": [{"name": "seo"}]},
+            "project": null,
+            "team": {"key": "PROD"},
+            "priority": 2,
+            "createdAt": "2026-04-20T10:00:00Z",
+            "startedAt": "2026-04-21T08:30:00Z",
+            "completedAt": "2026-05-01T14:00:00Z",
+            "updatedAt": "2026-05-01T14:00:00Z",
+            "dueDate": null,
+            "url": "https://linear.app/frr149/issue/PROD-955",
+            "relations": {"nodes": []},
+            "comments": {"nodes": []}
+        })
+    }
+
+    fn sample_view_issue_backlog() -> Value {
+        serde_json::json!({
+            "identifier": "TOOL-82",
+            "title": "Backlog issue without dates",
+            "state": {"name": "Backlog", "type": "backlog"},
+            "labels": {"nodes": []},
+            "project": null,
+            "team": {"key": "TOOL"},
+            "priority": 3,
+            "createdAt": "2026-05-01T09:00:00Z",
+            "startedAt": null,
+            "completedAt": null,
+            "updatedAt": "2026-05-01T09:00:00Z",
+            "dueDate": null,
+            "url": "https://linear.app/frr149/issue/TOOL-82",
+            "relations": {"nodes": []},
+            "comments": {"nodes": []}
+        })
+    }
+
+    #[test]
+    fn test_view_shows_completed_date() {
+        let issue = sample_view_issue_done();
+        let output = format_view(&issue);
+        assert!(output.contains("Completed: 2026-05-01"));
+        assert!(output.contains("Started: 2026-04-21"));
+        assert!(output.contains("Updated: 2026-05-01"));
+        assert!(output.contains("Created: 2026-04-20"));
+    }
+
+    #[test]
+    fn test_view_backlog_omits_completed() {
+        let issue = sample_view_issue_backlog();
+        let output = format_view(&issue);
+        assert!(!output.contains("Completed:"));
+        assert!(!output.contains("Started:"));
+        assert!(output.contains("Created: 2026-05-01"));
+        assert!(output.contains("Updated: 2026-05-01"));
+    }
+
+    #[test]
+    fn test_view_created_is_yyyy_mm_dd() {
+        let issue = sample_view_issue_done();
+        let output = format_view(&issue);
+        assert!(output.contains("Created: 2026-04-20"));
+        assert!(!output.contains("Created: today"));
+        assert!(!output.contains("Created: 16d"));
+    }
+
+    #[test]
+    fn test_extract_date_valid() {
+        let issue = serde_json::json!({"completedAt": "2026-05-01T14:00:00Z"});
+        assert_eq!(extract_date(&issue, "completedAt"), Some("2026-05-01".to_string()));
+    }
+
+    #[test]
+    fn test_extract_date_null() {
+        let issue = serde_json::json!({"completedAt": null});
+        assert_eq!(extract_date(&issue, "completedAt"), None);
+    }
+
+    #[test]
+    fn test_extract_date_missing() {
+        let issue = serde_json::json!({});
+        assert_eq!(extract_date(&issue, "startedAt"), None);
     }
 }

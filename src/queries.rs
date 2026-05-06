@@ -143,6 +143,9 @@ query IssueByIdentifier($filter: IssueFilter) {
         key
       }
       createdAt
+      startedAt
+      completedAt
+      updatedAt
       dueDate
       url
       relations {
