@@ -24,7 +24,7 @@
           },
           "createdAt": "2026-03-25T21:51:40.177Z",
           "dueDate": null,
-          "url": "https://linear.app/frr149/issue/TOOL-49/bateria-de-tests-err-0175-tests-de-regresion-del-prd"
+          "url": "https://linear.app/example-org/issue/TOOL-49/bateria-de-tests-err-0175-tests-de-regresion-del-prd"
         },
         {
           "id": "92254b68-5790-414f-98ea-c067aa76c94a",
@@ -48,7 +48,7 @@
           },
           "createdAt": "2026-03-25T21:51:25.264Z",
           "dueDate": null,
-          "url": "https://linear.app/frr149/issue/TOOL-48/comando-raw-escape-hatch-para-queries-graphql-directas"
+          "url": "https://linear.app/example-org/issue/TOOL-48/comando-raw-escape-hatch-para-queries-graphql-directas"
         },
         {
           "id": "599aee85-1635-4525-9d22-d2a963d87f7e",
@@ -72,7 +72,7 @@
           },
           "createdAt": "2026-03-25T21:51:19.298Z",
           "dueDate": null,
-          "url": "https://linear.app/frr149/issue/TOOL-47/comando-context-mostrar-resolucion-del-cwd"
+          "url": "https://linear.app/example-org/issue/TOOL-47/comando-context-mostrar-resolucion-del-cwd"
         },
         {
           "id": "809726c8-7fdf-4f72-96ac-dadcc0c3136b",
@@ -96,7 +96,7 @@
           },
           "createdAt": "2026-03-25T21:51:14.794Z",
           "dueDate": null,
-          "url": "https://linear.app/frr149/issue/TOOL-46/comando-doctor-validar-config-auth-teams-y-labels"
+          "url": "https://linear.app/example-org/issue/TOOL-46/comando-doctor-validar-config-auth-teams-y-labels"
         },
         {
           "id": "f8555ea6-83c6-4ce4-b6bc-f08f9bfd8272",
@@ -120,7 +120,7 @@
           },
           "createdAt": "2026-03-25T21:51:08.994Z",
           "dueDate": null,
-          "url": "https://linear.app/frr149/issue/TOOL-45/comando-labels-listar-labels-disponibles"
+          "url": "https://linear.app/example-org/issue/TOOL-45/comando-labels-listar-labels-disponibles"
         }
       ],
       "pageInfo": {

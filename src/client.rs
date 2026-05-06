@@ -447,10 +447,10 @@ mod tests {
     #[test]
     fn test_label_not_found_with_similar() {
         let meta = meta_from_fixture();
-        let err = meta.find_label("tokamax").unwrap_err(); // similar a "tokamak"
+        let err = meta.find_label("reactox").unwrap_err();
         assert!(err.contains("not found"), "Should say not found: {err}");
         assert!(err.contains("Closest (of"), "Should list closest: {err}");
-        assert!(err.contains("tokamak"), "Should suggest similar: {err}");
+        assert!(err.contains("reactor"), "Should suggest similar: {err}");
     }
 
     // ERR-23b: el error trunca a 10 labels máximo
@@ -496,8 +496,8 @@ mod tests {
     #[test]
     fn test_label_existing_found() {
         let meta = meta_from_fixture();
-        let label = meta.find_label("tokamak").unwrap();
-        assert_eq!(label.name, "tokamak");
+        let label = meta.find_label("reactor").unwrap();
+        assert_eq!(label.name, "reactor");
     }
 
     #[test]
@@ -565,8 +565,8 @@ mod tests {
     #[test]
     fn test_label_case_insensitive() {
         let meta = meta_from_fixture();
-        assert!(meta.find_label("Tokamak").is_ok());
-        assert!(meta.find_label("TOKAMAK").is_ok());
+        assert!(meta.find_label("Reactor").is_ok());
+        assert!(meta.find_label("REACTOR").is_ok());
         assert!(meta.find_label("LQL").is_ok());
     }
 
@@ -577,8 +577,8 @@ mod tests {
     fn test_project_exact_name() {
         let meta = meta_from_fixture();
         let prod = meta.find_team("PROD").unwrap();
-        let project = meta.find_project(prod, "Tokamak").unwrap();
-        assert_eq!(project.name, "Tokamak");
+        let project = meta.find_project(prod, "Reactor").unwrap();
+        assert_eq!(project.name, "Reactor");
     }
 
     // ERR-30: project por nombre case-insensitive
@@ -586,8 +586,8 @@ mod tests {
     fn test_project_case_insensitive() {
         let meta = meta_from_fixture();
         let prod = meta.find_team("PROD").unwrap();
-        assert!(meta.find_project(prod, "tokamak").is_ok());
-        assert!(meta.find_project(prod, "TOKAMAK").is_ok());
+        assert!(meta.find_project(prod, "reactor").is_ok());
+        assert!(meta.find_project(prod, "REACTOR").is_ok());
     }
 
     // ERR-31: project con espacios case-insensitive
@@ -818,12 +818,12 @@ mod tests {
 
     #[test]
     fn test_levenshtein_identical() {
-        assert_eq!(levenshtein("tokamak", "tokamak"), 0);
+        assert_eq!(levenshtein("reactor", "reactor"), 0);
     }
 
     #[test]
     fn test_levenshtein_one_char() {
-        assert_eq!(levenshtein("tokamak", "tokamac"), 1);
+        assert_eq!(levenshtein("reactor", "reactoc"), 1);
     }
 
     #[test]
@@ -847,7 +847,7 @@ mod tests {
         }
 
         // Labels del context-map deben existir
-        for label in &["tokamak", "acme", "blog", "lql"] {
+        for label in &["reactor", "phoenix", "blog", "lql"] {
             assert!(
                 meta.find_label(label).is_ok(),
                 "Label {label} should exist in fixture"

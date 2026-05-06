@@ -167,9 +167,9 @@ states = ["backlog", "unstarted", "started"]
 limit = 50
 
 [context-map]
-"~/projects/tokamak" = { team = "PROD", project = "Tokamak", label = "tokamak" }
-"~/code/acme" = { team = "PROD", project = "Acme", label = "acme" }
-"~/code/frr.dev" = { team = "CONT", project = "Blog", label = "blog" }
+"~/code/reactor" = { team = "PROD", project = "Reactor", label = "reactor" }
+"~/code/phoenix" = { team = "PROD", project = "Phoenix", label = "phoenix" }
+"~/code/blog" = { team = "CONT", project = "Blog", label = "blog" }
 "~/code/homelab" = { team = "PRIV", label = "homelab" }
 "~/code/lql" = { team = "TOOL", label = "lql" }
 
@@ -188,33 +188,32 @@ low = 4
 none = 0
 
 [retired-teams]
-TOK = "Tokamak issues are now in PROD. Use: --team PROD --label tokamak"
-QIN = "Use: --team PROD --label acme"
+TOK = "Reactor issues are now in PROD. Use: --team PROD --label reactor"
+QIN = "Use: --team PROD --label phoenix"
 "#;
         toml::from_str(toml_str).unwrap()
     }
 
     // ERR-19: auto-detect team desde cwd
     #[test]
-    fn test_resolve_context_tokamak() {
+    fn test_resolve_context_reactor() {
         let config = test_config();
         let home = dirs::home_dir().unwrap();
-        let cwd = home.join("code/tokamak");
+        let cwd = home.join("code/reactor");
         let ctx = config.resolve_context(&cwd).unwrap();
         assert_eq!(ctx.team, "PROD");
-        assert_eq!(ctx.project.as_deref(), Some("Tokamak"));
-        assert_eq!(ctx.label.as_deref(), Some("tokamak"));
+        assert_eq!(ctx.project.as_deref(), Some("Reactor"));
+        assert_eq!(ctx.label.as_deref(), Some("reactor"));
     }
 
-    // ERR-20: auto-detect team desde cwd acme
     #[test]
-    fn test_resolve_context_acme() {
+    fn test_resolve_context_phoenix() {
         let config = test_config();
         let home = dirs::home_dir().unwrap();
-        let cwd = home.join("code/acme");
+        let cwd = home.join("code/phoenix");
         let ctx = config.resolve_context(&cwd).unwrap();
         assert_eq!(ctx.team, "PROD");
-        assert_eq!(ctx.label.as_deref(), Some("acme"));
+        assert_eq!(ctx.label.as_deref(), Some("phoenix"));
     }
 
     // ERR-21: cwd sin match
@@ -230,7 +229,7 @@ QIN = "Use: --team PROD --label acme"
     fn test_resolve_team_override() {
         let config = test_config();
         let home = dirs::home_dir().unwrap();
-        let cwd = home.join("code/tokamak");
+        let cwd = home.join("code/reactor");
         let (team, project, label) = config.resolve_team(Some("CONT"), &cwd).unwrap();
         assert_eq!(team, "CONT");
         assert!(project.is_none()); // override no trae project/label
@@ -282,9 +281,9 @@ QIN = "Use: --team PROD --label acme"
     fn test_resolve_context_subdirectory() {
         let config = test_config();
         let home = dirs::home_dir().unwrap();
-        let cwd = home.join("code/tokamak/src/deep/nested");
+        let cwd = home.join("code/reactor/src/deep/nested");
         let ctx = config.resolve_context(&cwd).unwrap();
         assert_eq!(ctx.team, "PROD");
-        assert_eq!(ctx.label.as_deref(), Some("tokamak"));
+        assert_eq!(ctx.label.as_deref(), Some("reactor"));
     }
 }

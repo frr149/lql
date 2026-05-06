@@ -24,7 +24,7 @@
           },
           "createdAt": "2026-03-25T21:49:46.436Z",
           "dueDate": null,
-          "url": "https://linear.app/frr149/issue/TOOL-33/scaffolding-cargotoml-mainrs-con-clap-estructura-de-directorios"
+          "url": "https://linear.app/example-org/issue/TOOL-33/scaffolding-cargotoml-mainrs-con-clap-estructura-de-directorios"
         },
         {
           "id": "7b30931d-b4f5-4d08-8d48-5a24904c2c36",
@@ -48,7 +48,7 @@
           },
           "createdAt": "2026-01-13T14:40:30.773Z",
           "dueDate": null,
-          "url": "https://linear.app/frr149/issue/PROD-429/d0-03-ui-minima-layout"
+          "url": "https://linear.app/example-org/issue/PROD-429/d0-03-ui-minima-layout"
         },
         {
           "id": "79a5706f-24dd-4e17-97ed-33dbfd708f20",
@@ -74,7 +74,7 @@
           },
           "createdAt": "2026-01-13T14:40:27.795Z",
           "dueDate": null,
-          "url": "https://linear.app/frr149/issue/BAT-2/d0-01-scaffold-del-proyecto"
+          "url": "https://linear.app/example-org/issue/BAT-2/d0-01-scaffold-del-proyecto"
         },
         {
           "id": "f0dc6c20-0e99-40a0-b17f-33f40ee77ab2",
@@ -100,7 +100,7 @@
           },
           "createdAt": "2026-03-13T21:39:09.849Z",
           "dueDate": null,
-          "url": "https://linear.app/frr149/issue/CONT-70/meta-skills-o-high-order-skills"
+          "url": "https://linear.app/example-org/issue/CONT-70/meta-skills-o-high-order-skills"
         },
         {
           "id": "63189840-0bfb-4f2a-8d85-472e592ab312",
@@ -124,7 +124,7 @@
           },
           "createdAt": "2026-03-23T13:25:08.905Z",
           "dueDate": null,
-          "url": "https://linear.app/frr149/issue/PROD-581/prototipar-algebra-de-skills-para-claude-code-combinadores-map-reduce"
+          "url": "https://linear.app/example-org/issue/PROD-581/prototipar-algebra-de-skills-para-claude-code-combinadores-map-reduce"
         }
       ]
     }

@@ -181,7 +181,7 @@ mod tests {
         let client = MockClient::new(Ok(serde_json::json!({})));
 
         let opts = LabelsCreateOpts {
-            name: "tokamak".to_string(), // ya existe en el fixture
+            name: "reactor".to_string(), // ya existe en el fixture
             color: None,
             team: None,
             json: false,
@@ -199,7 +199,7 @@ mod tests {
         let client = MockClient::new(Ok(serde_json::json!({})));
 
         let opts = LabelsCreateOpts {
-            name: "TOKAMAK".to_string(),
+            name: "REACTOR".to_string(),
             color: None,
             team: None,
             json: false,
@@ -282,7 +282,7 @@ mod tests {
         })));
 
         let opts = LabelsDeleteOpts {
-            name: "tokamak".to_string(), // existe en fixture
+            name: "reactor".to_string(), // existe en fixture
         };
 
         let result = delete(&client, &opts);
@@ -314,7 +314,7 @@ mod tests {
         })));
 
         let opts = LabelsDeleteOpts {
-            name: "tokamak".to_string(),
+            name: "reactor".to_string(),
         };
 
         let result = delete(&client, &opts);

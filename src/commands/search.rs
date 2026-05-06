@@ -73,18 +73,18 @@ mod tests {
     #[test]
     fn test_search_results_toon() {
         let issues = vec![serde_json::json!({
-            "identifier": "PROD-587",
+            "identifier": "TEST-101",
             "state": {"name": "Backlog", "type": "backlog"},
-            "labels": {"nodes": [{"name": "tokamak"}]},
+            "labels": {"nodes": [{"name": "frontend"}]},
             "title": "Test issue",
             "priority": 2,
             "createdAt": "2026-03-11T10:00:00Z",
             "dueDate": null,
-            "project": {"name": "Tokamak"},
-            "team": {"key": "PROD"},
+            "project": {"name": "Acme"},
+            "team": {"key": "TEST"},
         })];
         let refs: Vec<&serde_json::Value> = issues.iter().collect();
         let toon = format::format_issues_toon(&refs);
-        assert!(toon.contains("PROD-587"), "{toon}");
+        assert!(toon.contains("TEST-101"), "{toon}");
     }
 }

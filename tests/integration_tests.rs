@@ -133,7 +133,7 @@ fn integration_labels() {
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
     assert_eq!(code, 0, "stderr: {stderr}");
     assert!(
-        stdout.contains("tokamak") || stdout.contains("lql"),
+        stdout.contains("reactor") || stdout.contains("lql"),
         "stdout: {stdout}"
     );
 }
