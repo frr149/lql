@@ -4,6 +4,8 @@
 
 Rust CLI for managing Linear issues. Designed for LLM consumption: compact output, zero mandatory flags, tolerant input normalization.
 
+**Repo:** GitHub only (`origin` → `git@github.com:frr149/lql.git`). No Gitea mirror. All PRs go to GitHub.
+
 ## Commands
 
 ```bash
