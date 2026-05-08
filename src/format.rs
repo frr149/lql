@@ -775,6 +775,55 @@ mod tests {
     }
 
     #[test]
+    fn test_format_comments_with_body() {
+        let issue = serde_json::json!({
+            "comments": {
+                "nodes": [
+                    {
+                        "id": "c1",
+                        "body": "First comment text",
+                        "createdAt": "2026-05-01T10:00:00Z",
+                        "user": {"name": "Alice"}
+                    },
+                    {
+                        "id": "c2",
+                        "body": "Second comment text",
+                        "createdAt": "2026-05-02T11:00:00Z",
+                        "user": {"name": "Bob"}
+                    }
+                ]
+            }
+        });
+        let output = format_comments(&issue);
+        assert!(output.contains("Alice"), "Should show author name: {output}");
+        assert!(output.contains("Bob"), "Should show second author: {output}");
+        assert!(output.contains("First comment text"), "Should show body: {output}");
+        assert!(output.contains("Second comment text"), "Should show second body: {output}");
+        assert!(output.contains("2026-05-01"), "Should show date: {output}");
+    }
+
+    #[test]
+    fn test_format_comments_empty() {
+        let issue = serde_json::json!({
+            "comments": {"nodes": []}
+        });
+        let output = format_comments(&issue);
+        assert_eq!(output, "No comments.");
+    }
+
+    #[test]
+    fn test_format_comments_missing_fields_graceful() {
+        // When API only returns id (the old bug), should show Unknown/empty gracefully
+        let issue = serde_json::json!({
+            "comments": {
+                "nodes": [{"id": "c1"}]
+            }
+        });
+        let output = format_comments(&issue);
+        assert!(output.contains("Unknown"), "Should fallback to Unknown: {output}");
+    }
+
+    #[test]
     fn test_format_epic_created() {
         let epic = serde_json::json!({
             "slugId": "pre-locale",
