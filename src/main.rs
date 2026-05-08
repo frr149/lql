@@ -38,6 +38,7 @@ fn main() {
         cli::Command::View(opts) => commands::view::run(&config, &opts),
         cli::Command::Search(opts) => commands::search::run(&config, &opts),
         cli::Command::Comment(opts) => commands::comment::run(&config, &opts),
+        cli::Command::Comments(opts) => commands::view::run_comments(&config, &opts),
         cli::Command::Relate(opts) => commands::relate::run(&config, &opts),
         cli::Command::Unlink(opts) => commands::relate::run_unlink(&config, &opts),
         cli::Command::Labels(opts) => commands::labels::run(&config, &opts),
