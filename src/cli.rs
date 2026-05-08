@@ -29,6 +29,8 @@ pub enum Command {
     Search(SearchOpts),
     /// Add a comment to an issue
     Comment(CommentOpts),
+    /// List comments on an issue
+    Comments(CommentsOpts),
     /// Create or remove a relation between issues
     Relate(RelateOpts),
     /// Remove a relation between issues (shorthand for relate ... unlink)
@@ -256,6 +258,16 @@ pub struct CommentOpts {
 }
 
 #[derive(Parser, Debug)]
+pub struct CommentsOpts {
+    /// Issue ID (e.g. PROD-587)
+    pub issue_id: String,
+
+    /// Output as JSON
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Parser, Debug)]
 pub struct RelateOpts {
     /// Source issue (e.g. PROD-587)
     pub from: String,
@@ -469,6 +481,7 @@ pub fn command_prefers_machine_mode(command: &Command) -> bool {
             Some(LabelsAction::Delete(_)) => false,
             None => opts.json,
         },
+        Command::Comments(opts) => opts.json,
         Command::Comment(_)
         | Command::Relate(_)
         | Command::Unlink(_)
@@ -1140,6 +1153,31 @@ mod tests {
             assert_eq!(opts.issue_id, "PROD-824");
         } else {
             panic!("Expected View command with --comments");
+        }
+    }
+
+    // --- AX-09: `lql comments PROD-975` → should parse as Comments ---
+    // Real: "error: unrecognized subcommand 'comments'"
+    #[test]
+    fn test_comments_subcommand() {
+        let cli = Cli::try_parse_from(["lql", "comments", "PROD-975"]).unwrap();
+        if let Command::Comments(opts) = cli.command {
+            assert_eq!(opts.issue_id, "PROD-975");
+            assert!(!opts.json);
+        } else {
+            panic!("Expected Comments command");
+        }
+    }
+
+    // AX-09b: `lql comments PROD-975 --json` → should work with --json
+    #[test]
+    fn test_comments_subcommand_json() {
+        let cli = Cli::try_parse_from(["lql", "comments", "PROD-975", "--json"]).unwrap();
+        if let Command::Comments(opts) = cli.command {
+            assert_eq!(opts.issue_id, "PROD-975");
+            assert!(opts.json);
+        } else {
+            panic!("Expected Comments command with --json");
         }
     }
 

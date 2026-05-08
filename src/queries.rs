@@ -160,6 +160,11 @@ query IssueByIdentifier($filter: IssueFilter) {
       comments {
         nodes {
           id
+          body
+          createdAt
+          user {
+            name
+          }
         }
       }
     }
