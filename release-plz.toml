@@ -3,5 +3,9 @@
 publish = false
 # Create git tags on release
 git_tag_enable = true
+# cargo-dist (.github/workflows/release.yml) owns the GitHub Release and its
+# binary assets, triggered by the tag above. release-plz must NOT also create a
+# GitHub Release, or the two collide on the same tag.
+git_release_enable = false
 # Use conventional commits for changelog
 changelog_update = true
