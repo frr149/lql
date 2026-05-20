@@ -412,13 +412,31 @@ fn build_initiative_input(title: &str, body: Option<&str>) -> Value {
     input
 }
 
+/// Linear caps `ProjectCreateInput.name` at 80 characters.
+const PROJECT_NAME_MAX: usize = 80;
+
+/// The backing project's name, truncated to Linear's 80-char limit.
+///
+/// `ProjectCreateInput.name` is rejected with an "Argument Validation Error"
+/// above 80 chars — and epic titles routinely run longer. The backing project
+/// only has to identify the epic, so a truncated title (with an ellipsis to
+/// signal it) is fine; the full title lives on the initiative.
+fn project_name_for(title: &str) -> String {
+    if title.chars().count() <= PROJECT_NAME_MAX {
+        return title.to_string();
+    }
+    let truncated: String = title.chars().take(PROJECT_NAME_MAX - 1).collect();
+    format!("{truncated}…")
+}
+
 /// Builds the `ProjectCreateInput` for an epic's backing project.
 ///
 /// As with the initiative, the long body belongs in `content`, never in the
-/// length-capped `description`.
+/// length-capped `description`. The `name` is truncated to fit Linear's
+/// 80-char project-name limit.
 fn build_project_input(title: &str, body: Option<&str>, team_ids: &[String]) -> Value {
     let mut input = serde_json::json!({
-        "name": title,
+        "name": project_name_for(title),
         "teamIds": team_ids,
     });
     if let Some(body) = body {
@@ -594,6 +612,37 @@ mod tests {
         assert_eq!(input["content"], serde_json::json!(body));
         assert_eq!(input["teamIds"], serde_json::json!(team_ids));
         assert!(input.get("description").is_none());
+    }
+
+    #[test]
+    fn build_project_input_truncates_name_to_linear_limit() {
+        // Linear rejects a `ProjectCreateInput.name` over 80 chars — and epic
+        // titles routinely run longer.
+        let long_title = "X".repeat(200);
+        let input = build_project_input(&long_title, None, &[]);
+        let name = input["name"].as_str().unwrap();
+        assert!(
+            name.chars().count() <= 80,
+            "project name must fit Linear's 80-char cap, got {}",
+            name.chars().count()
+        );
+        assert!(name.ends_with('…'), "a truncated name should signal it");
+    }
+
+    #[test]
+    fn build_project_input_keeps_short_name_verbatim() {
+        let input = build_project_input("Short epic title", None, &[]);
+        assert_eq!(input["name"], "Short epic title");
+    }
+
+    #[test]
+    fn project_name_truncation_is_char_safe_for_multibyte_titles() {
+        // The epic that exposed this bug had a 92-char title full of `—`/`·`.
+        let title = "TOK: Setup Lab — inteligencia de configuración en bucle cerrado (audit · measure · optimize)";
+        let name = project_name_for(title);
+        assert!(name.chars().count() <= 80);
+        // Must not panic or split a multi-byte char — round-tripping proves it.
+        assert!(name.is_char_boundary(name.len()));
     }
 
     // --- Bug 3: `epic create` is atomic; a partial failure leaves no orphan ---
