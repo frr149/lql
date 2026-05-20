@@ -209,3 +209,25 @@ fn integration_context() {
         "Should print context header: {stdout}"
     );
 }
+
+// --- EPIC subcommand broken: queries exceed Linear's complexity budget ---
+//
+// The entire `epic` subcommand (create, list, view, add) is non-functional.
+// `INITIATIVES_QUERY` and `INITIATIVE_BY_REF_QUERY` request deeply nested
+// connections whose `first:` page sizes multiply past Linear's 10,000-point
+// GraphQL complexity budget, so the API rejects every call with
+// "Query too complex". See the PR description for full root-cause analysis.
+//
+// This test currently FAILS. It is the acceptance test for the fix:
+//   cargo test -- --ignored integration_epic_list_succeeds
+
+#[test]
+#[ignore]
+fn integration_epic_list_succeeds() {
+    let (code, _stdout, stderr) = run_lql(&["epic", "list"]);
+    assert_eq!(code, 0, "epic list should exit 0. stderr: {stderr}");
+    assert!(
+        !stderr.to_lowercase().contains("complex"),
+        "epic list must not exceed Linear's GraphQL complexity budget. stderr: {stderr}"
+    );
+}
