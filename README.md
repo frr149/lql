@@ -163,6 +163,13 @@ echo "## Progress\nPartial fix deployed" | lql comment PROD-42
 lql relate PROD-42 blocks PROD-43
 lql relate PROD-42 blocked-by PROD-41
 
+# Epics (Linear initiatives with a backing project)
+lql epic list
+lql epic create "Pre-locale ETL rework" --team PROD -d "Short summary"
+lql epic create "Pre-locale ETL rework" --description-file epic.md   # long body
+lql epic view pre-locale-d9994a56fc60
+lql epic add pre-locale-d9994a56fc60 PROD-42 PROD-43                  # assign issues
+
 # Diagnostics
 lql doctor    # validate config, auth, API connectivity
 lql context   # show resolved team/project/label for cwd

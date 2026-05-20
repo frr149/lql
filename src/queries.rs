@@ -264,6 +264,12 @@ mutation DeleteRelation($id: String!) {
 "#;
 
 /// Listar epics (Linear initiatives)
+///
+/// Nested page sizes are deliberately small: Linear rejects any query above a
+/// ~10,000-point complexity budget, and nested connection page sizes multiply.
+/// `projects(first: 5)` × `teams(first: 3)` keeps the worst case (first: 250)
+/// well inside the budget. lql-managed epics have a single backing project, so
+/// these caps never truncate in practice.
 pub const INITIATIVES_QUERY: &str = r#"
 query ListInitiatives($filter: InitiativeFilter, $first: Int, $orderBy: PaginationOrderBy) {
   initiatives(filter: $filter, first: $first, orderBy: $orderBy) {
@@ -276,12 +282,12 @@ query ListInitiatives($filter: InitiativeFilter, $first: Int, $orderBy: Paginati
       targetDate
       createdAt
       url
-      projects(first: 25) {
+      projects(first: 5) {
         nodes {
           id
           name
           slugId
-          teams {
+          teams(first: 3) {
             nodes {
               key
             }
@@ -294,6 +300,12 @@ query ListInitiatives($filter: InitiativeFilter, $first: Int, $orderBy: Paginati
 "#;
 
 /// Buscar epic por slugId / UUID
+///
+/// Deliberately does NOT nest `issues` under each project: that extra
+/// connection level multiplied page sizes past Linear's complexity budget.
+/// `epic view` fetches the issues separately via `ISSUES_QUERY` filtered by
+/// project id. `content` holds the long markdown body (`description` is the
+/// short summary; older epics may still carry their body there).
 pub const INITIATIVE_BY_REF_QUERY: &str = r#"
 query InitiativeByRef($filter: InitiativeFilter) {
   initiatives(filter: $filter, first: 1) {
@@ -302,47 +314,21 @@ query InitiativeByRef($filter: InitiativeFilter) {
       slugId
       name
       description
+      content
       status
       targetDate
       createdAt
       url
-      projects(first: 50) {
+      projects(first: 25) {
         nodes {
           id
           name
           slugId
           url
           targetDate
-          teams {
+          teams(first: 5) {
             nodes {
               key
-            }
-          }
-          issues(first: 250) {
-            nodes {
-              id
-              identifier
-              title
-              priority
-              state {
-                name
-                type
-              }
-              labels {
-                nodes {
-                  name
-                }
-              }
-              project {
-                id
-                name
-              }
-              team {
-                key
-              }
-              createdAt
-              dueDate
-              url
             }
           }
         }
@@ -362,11 +348,30 @@ mutation CreateInitiative($input: InitiativeCreateInput!) {
       slugId
       name
       description
+      content
       status
       targetDate
       createdAt
       url
     }
+  }
+}
+"#;
+
+/// Borrar epic (rollback de un `epic create` parcialmente fallido)
+pub const INITIATIVE_DELETE_MUTATION: &str = r#"
+mutation DeleteInitiative($id: String!) {
+  initiativeDelete(id: $id) {
+    success
+  }
+}
+"#;
+
+/// Borrar project (rollback de un `epic create` parcialmente fallido)
+pub const PROJECT_DELETE_MUTATION: &str = r#"
+mutation DeleteProject($id: String!) {
+  projectDelete(id: $id) {
+    success
   }
 }
 "#;
