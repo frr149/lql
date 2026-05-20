@@ -493,11 +493,20 @@ pub fn format_epic_view(epic: &Value) -> String {
         lines.push(format!("  {url}"));
     }
 
-    if let Some(desc) = epic.get("description").and_then(|d| d.as_str())
-        && !desc.is_empty()
-    {
+    // The long body lives in `content`; `description` is only the short
+    // summary. Fall back to `description` for epics created before the fix.
+    let body = epic
+        .get("content")
+        .and_then(|d| d.as_str())
+        .filter(|s| !s.is_empty())
+        .or_else(|| {
+            epic.get("description")
+                .and_then(|d| d.as_str())
+                .filter(|s| !s.is_empty())
+        });
+    if let Some(body) = body {
         lines.push("  ─────".to_string());
-        for line in desc.lines() {
+        for line in body.lines() {
             lines.push(format!("  {line}"));
         }
         lines.push("  ─────".to_string());
