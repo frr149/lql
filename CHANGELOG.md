@@ -15,6 +15,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fetch comment body/user in GraphQL query, add `comments` subcommand
 - sanitize personal identifiers across all tests and fixtures
 
+## [1.5.0](https://github.com/frr149/lql/releases/tag/v1.5.0) - 2026-05-06
+
+### Added
+
+- show key dates (startedAt, completedAt, updatedAt) in view output
+
+## [1.4.1](https://github.com/frr149/lql/releases/tag/v1.4.1) - 2026-04-29
+
+### Added
+
+- relate defaults to "related", normalize "relates-to"
+
 ## [1.4.0](https://github.com/frr149/lql/releases/tag/v1.4.0) - 2026-04-29
 
 ### Added

@@ -25,10 +25,15 @@ jobs:
       - name: Run release-plz
         id: release-plz
         uses: release-plz/action@v0.5
-        with:
-          command: release-pr
+        # No `command:` → runs both `release` (tags any merged version bump)
+        # and `release-pr` (opens/updates the next release PR). Previously only
+        # `release-pr` ran, so tags were never created and releases stalled.
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Must be a PAT, not the default GITHUB_TOKEN: a tag pushed with
+          # GITHUB_TOKEN does not trigger other workflows, so cargo-dist's
+          # release.yml would never fire. The PAT lets the tag push trigger
+          # the cross-platform binary release.
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN }}
 
       - name: Notify Telegram
         if: steps.release-plz.outputs.prs_created == 'true'
