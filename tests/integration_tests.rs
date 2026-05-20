@@ -210,16 +210,14 @@ fn integration_context() {
     );
 }
 
-// --- EPIC subcommand broken: queries exceed Linear's complexity budget ---
+// --- EPIC subcommand: queries must stay within Linear's complexity budget ---
 //
-// The entire `epic` subcommand (create, list, view, add) is non-functional.
-// `INITIATIVES_QUERY` and `INITIATIVE_BY_REF_QUERY` request deeply nested
-// connections whose `first:` page sizes multiply past Linear's 10,000-point
-// GraphQL complexity budget, so the API rejects every call with
-// "Query too complex". See the PR description for full root-cause analysis.
-//
-// This test currently FAILS. It is the acceptance test for the fix:
-//   cargo test -- --ignored integration_epic_list_succeeds
+// Regression tests for the fully-broken `epic` subcommand (see PR #12). The
+// `epic` queries used to nest connections whose `first:` page sizes multiplied
+// past Linear's 10,000-point GraphQL complexity budget, so every call failed
+// with "Query too complex"; `epic view` additionally fed a non-UUID slug to a
+// UUID-validated `id` filter. Both are fixed — these tests guard the fix:
+//   cargo test -- --ignored integration_epic_list_succeeds integration_epic_view_succeeds
 
 #[test]
 #[ignore]
@@ -229,5 +227,34 @@ fn integration_epic_list_succeeds() {
     assert!(
         !stderr.to_lowercase().contains("complex"),
         "epic list must not exceed Linear's GraphQL complexity budget. stderr: {stderr}"
+    );
+}
+
+/// `epic view <slug>` must resolve a slugId without tripping the complexity
+/// budget or the UUID-only `id` filter validation. Skips cleanly if the org
+/// has no initiatives yet.
+#[test]
+#[ignore]
+fn integration_epic_view_succeeds() {
+    let (code, stdout, stderr) = run_lql(&["epic", "list", "--json"]);
+    assert_eq!(code, 0, "epic list --json should exit 0. stderr: {stderr}");
+
+    let slug = stdout.lines().find_map(|line| {
+        let value: serde_json::Value = serde_json::from_str(line).ok()?;
+        value
+            .get("id")
+            .and_then(|id| id.as_str())
+            .map(ToOwned::to_owned)
+    });
+    let Some(slug) = slug else {
+        return; // no initiatives to view — nothing to assert
+    };
+
+    let (code, _stdout, stderr) = run_lql(&["epic", "view", &slug]);
+    assert_eq!(code, 0, "epic view {slug} should exit 0. stderr: {stderr}");
+    let lower = stderr.to_lowercase();
+    assert!(
+        !lower.contains("complex") && !lower.contains("validation"),
+        "epic view must not trip the complexity budget or id-filter validation. stderr: {stderr}"
     );
 }
