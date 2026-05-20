@@ -209,3 +209,52 @@ fn integration_context() {
         "Should print context header: {stdout}"
     );
 }
+
+// --- EPIC subcommand: queries must stay within Linear's complexity budget ---
+//
+// Regression tests for the fully-broken `epic` subcommand (see PR #12). The
+// `epic` queries used to nest connections whose `first:` page sizes multiplied
+// past Linear's 10,000-point GraphQL complexity budget, so every call failed
+// with "Query too complex"; `epic view` additionally fed a non-UUID slug to a
+// UUID-validated `id` filter. Both are fixed — these tests guard the fix:
+//   cargo test -- --ignored integration_epic_list_succeeds integration_epic_view_succeeds
+
+#[test]
+#[ignore]
+fn integration_epic_list_succeeds() {
+    let (code, _stdout, stderr) = run_lql(&["epic", "list"]);
+    assert_eq!(code, 0, "epic list should exit 0. stderr: {stderr}");
+    assert!(
+        !stderr.to_lowercase().contains("complex"),
+        "epic list must not exceed Linear's GraphQL complexity budget. stderr: {stderr}"
+    );
+}
+
+/// `epic view <slug>` must resolve a slugId without tripping the complexity
+/// budget or the UUID-only `id` filter validation. Skips cleanly if the org
+/// has no initiatives yet.
+#[test]
+#[ignore]
+fn integration_epic_view_succeeds() {
+    let (code, stdout, stderr) = run_lql(&["epic", "list", "--json"]);
+    assert_eq!(code, 0, "epic list --json should exit 0. stderr: {stderr}");
+
+    let slug = stdout.lines().find_map(|line| {
+        let value: serde_json::Value = serde_json::from_str(line).ok()?;
+        value
+            .get("id")
+            .and_then(|id| id.as_str())
+            .map(ToOwned::to_owned)
+    });
+    let Some(slug) = slug else {
+        return; // no initiatives to view — nothing to assert
+    };
+
+    let (code, _stdout, stderr) = run_lql(&["epic", "view", &slug]);
+    assert_eq!(code, 0, "epic view {slug} should exit 0. stderr: {stderr}");
+    let lower = stderr.to_lowercase();
+    assert!(
+        !lower.contains("complex") && !lower.contains("validation"),
+        "epic view must not trip the complexity budget or id-filter validation. stderr: {stderr}"
+    );
+}
