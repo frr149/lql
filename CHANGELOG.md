@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.1](https://github.com/frr149/lql/releases/tag/v1.5.1) - 2026-05-20
+
+### Fixed
+
+- repair fully-broken `epic` subcommand — complexity-limit queries, long-body overflow into the capped `description` field, non-atomic `create` leaving orphans, UUID-filter validation, and the 80-char backing-project name limit
+- fetch comment body/user in GraphQL query, add `comments` subcommand
+- sanitize personal identifiers across all tests and fixtures
+
 ## [1.4.0](https://github.com/frr149/lql/releases/tag/v1.4.0) - 2026-04-29
 
 ### Added
