@@ -166,12 +166,17 @@ lql relate PROD-42 blocked-by PROD-41
 # Epics (Linear initiatives with a backing project)
 lql epic list
 lql epic create "Pre-locale ETL rework" --team PROD -d "Short summary"
-lql epic create "Pre-locale ETL rework" --description-file epic.md   # long body
-lql epic view pre-locale-d9994a56fc60
-lql epic add pre-locale-d9994a56fc60 PROD-42 PROD-43                  # assign issues
+lql epic create "Pre-locale ETL rework" --description-file epic.md     # long body
+lql epic view pre-locale-d9994a56fc60                                  # also exposes the backing project id/url
+lql epic add pre-locale-d9994a56fc60 PROD-42 PROD-43                   # assign issues
+lql epic update pre-locale-d9994a56fc60 --description-file plan-v2.md  # rewrite long body
+lql epic update pre-locale-d9994a56fc60 --summary "Now shipping in Q3" --target-date 2026-09-30
+lql epic comment pre-locale-d9994a56fc60 "Phase 1 done — moving to ETL backfill"
 
-# Known gap: updating an existing epic body still requires raw GraphQL.
-# See docs/epic-update-contract.md for the implementation contract.
+# Projects (the underlying Linear projects; useful when an epic has its own project surface)
+lql project view "Bastidor v1.0"                                       # by name, slugId, or UUID
+lql project update <project-id> --description-file plan.md
+lql project comment <project-id> --file note.md
 
 # Diagnostics
 lql doctor    # validate config, auth, API connectivity

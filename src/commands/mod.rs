@@ -5,6 +5,7 @@ pub mod doctor;
 pub mod epic;
 pub mod labels;
 pub mod list;
+pub mod project;
 pub mod raw;
 pub mod relate;
 pub mod search;
