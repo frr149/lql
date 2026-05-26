@@ -1,10 +1,15 @@
-use crate::cli::{EpicAction, EpicAddOpts, EpicCreateOpts, EpicListOpts, EpicOpts, EpicViewOpts};
+use crate::cli::{
+    EpicAction, EpicAddOpts, EpicCommentOpts, EpicCreateOpts, EpicListOpts, EpicOpts,
+    EpicUpdateOpts, EpicViewOpts,
+};
 use crate::client::{Client, GraphQLClient, LinearMeta};
+use crate::commands::comment::{CommentSource, resolve_body_from_source};
 use crate::commands::create::get_description_from_args;
 use crate::commands::update::find_issue_by_identifier;
 use crate::config::Config;
 use crate::format;
 use serde_json::Value;
+use std::io::IsTerminal;
 
 pub fn run(config: &Config, opts: &EpicOpts) -> Result<(), String> {
     match &opts.action {
@@ -12,6 +17,8 @@ pub fn run(config: &Config, opts: &EpicOpts) -> Result<(), String> {
         EpicAction::List(opts) => run_list(config, opts),
         EpicAction::View(opts) => run_view(config, opts),
         EpicAction::Add(opts) => run_add(config, opts),
+        EpicAction::Update(opts) => run_update(config, opts),
+        EpicAction::Comment(opts) => run_comment(config, opts),
     }
 }
 
@@ -260,6 +267,296 @@ fn run_add(config: &Config, opts: &EpicAddOpts) -> Result<(), String> {
         println!("  Already assigned: {}", skipped.join(", "));
     }
 
+    Ok(())
+}
+
+fn run_update(config: &Config, opts: &EpicUpdateOpts) -> Result<(), String> {
+    let client = Client::new(&config.auth.api_key_ref)?;
+    let inputs = build_epic_update_inputs(opts)?;
+
+    let epic = find_epic_by_ref(&client, &opts.epic_id)?;
+    let epic_id = epic
+        .get("id")
+        .and_then(|v| v.as_str())
+        .ok_or("Epic has no id")?
+        .to_string();
+    let epic_slug = epic
+        .get("slugId")
+        .and_then(|v| v.as_str())
+        .unwrap_or(&opts.epic_id)
+        .to_string();
+
+    // Per scope decision: do not silently auto-create a backing project. The
+    // missing-backing-project case is rare for `lql`-managed epics, and the
+    // failure message points to `lql epic add`, which is the supported way.
+    let project_id = require_backing_project_id(&epic, &epic_slug)?;
+
+    let updated_initiative =
+        run_initiative_update(&client, &epic_id, &inputs.initiative, &epic_slug)?;
+    let updated_project = run_project_update(&client, &project_id, &inputs.project)?;
+
+    if opts.json {
+        let payload = serde_json::json!({
+            "initiative": updated_initiative,
+            "project": updated_project,
+            "fields": inputs.fields,
+        });
+        println!("{}", serde_json::to_string_pretty(&payload).unwrap_or_default());
+    } else {
+        println!("{}", format::format_epic_updated(&epic_slug, &inputs.fields));
+    }
+
+    Ok(())
+}
+
+fn run_comment(config: &Config, opts: &EpicCommentOpts) -> Result<(), String> {
+    let client = Client::new(&config.auth.api_key_ref)?;
+
+    let is_terminal = std::io::stdin().is_terminal();
+    let body = resolve_body_from_source(
+        &CommentSource {
+            body: opts.body.as_deref(),
+            body_flag: opts.body_flag.as_deref(),
+            file: opts.file.as_deref(),
+            usage_hint: "lql epic comment ID \"text\" or --file or stdin",
+        },
+        &mut std::io::stdin(),
+        is_terminal,
+    )?;
+
+    let epic = find_epic_by_ref(&client, &opts.epic_id)?;
+    let epic_id = epic
+        .get("id")
+        .and_then(|v| v.as_str())
+        .ok_or("Epic has no id")?
+        .to_string();
+    let epic_slug = epic
+        .get("slugId")
+        .and_then(|v| v.as_str())
+        .unwrap_or(&opts.epic_id)
+        .to_string();
+
+    let project_id = resolve_single_backing_project_id(&epic, &epic_slug)?;
+
+    create_comment(
+        &client,
+        serde_json::json!({ "initiativeId": epic_id, "body": body }),
+        &format!("epic {epic_slug}"),
+    )?;
+
+    if let Some(project_id) = &project_id {
+        create_comment(
+            &client,
+            serde_json::json!({ "projectId": project_id, "body": body }),
+            &format!("backing project of {epic_slug}"),
+        )?;
+        println!("✓ Comment added to {epic_slug} (initiative + backing project)");
+    } else {
+        println!("✓ Comment added to {epic_slug}");
+    }
+
+    Ok(())
+}
+
+/// Inputs split per target (initiative + optional backing project) plus the
+/// human-readable list of fields actually changed.
+#[derive(Debug)]
+pub(crate) struct EpicUpdateInputs {
+    pub initiative: Value,
+    pub project: Value,
+    pub fields: Vec<String>,
+}
+
+/// Translates `EpicUpdateOpts` into the two `*UpdateInput` payloads.
+///
+/// Rules enforced here so the runtime can stay focused on the API call:
+/// - at least one update flag is required,
+/// - `--description` and `--description-file` are mutually exclusive,
+/// - the long markdown body goes to `content`, never to the length-capped
+///   `description`,
+/// - `--summary` updates the short Linear `description`,
+/// - `--target-date` is shallow-validated as `YYYY-MM-DD`,
+/// - title updates apply the initiative name verbatim and the truncated
+///   backing-project name.
+pub(crate) fn build_epic_update_inputs(opts: &EpicUpdateOpts) -> Result<EpicUpdateInputs, String> {
+    if opts.description.is_some() && opts.description_file.is_some() {
+        return Err("--description and --description-file are mutually exclusive".to_string());
+    }
+
+    let body = get_description_from_args(opts.description.as_ref(), opts.description_file.as_ref())?;
+
+    let mut initiative = serde_json::Map::new();
+    let mut project = serde_json::Map::new();
+    let mut fields: Vec<String> = Vec::new();
+
+    if let Some(title) = opts.title.as_deref() {
+        initiative.insert("name".to_string(), Value::String(title.to_string()));
+        project.insert("name".to_string(), Value::String(project_name_for(title)));
+        fields.push("title".to_string());
+    }
+    if let Some(body) = body {
+        initiative.insert("content".to_string(), Value::String(body.clone()));
+        project.insert("content".to_string(), Value::String(body));
+        fields.push("content".to_string());
+    }
+    if let Some(summary) = opts.summary.as_deref() {
+        initiative.insert("description".to_string(), Value::String(summary.to_string()));
+        project.insert("description".to_string(), Value::String(summary.to_string()));
+        fields.push("summary".to_string());
+    }
+    if let Some(target) = opts.target_date.as_deref() {
+        validate_target_date(target)?;
+        initiative.insert("targetDate".to_string(), Value::String(target.to_string()));
+        project.insert("targetDate".to_string(), Value::String(target.to_string()));
+        fields.push("targetDate".to_string());
+    }
+
+    if fields.is_empty() {
+        return Err(
+            "No update fields provided. Pass at least one of --title, --description, \
+             --description-file, --summary, --target-date."
+                .to_string(),
+        );
+    }
+
+    Ok(EpicUpdateInputs {
+        initiative: Value::Object(initiative),
+        project: Value::Object(project),
+        fields,
+    })
+}
+
+fn run_initiative_update(
+    client: &dyn GraphQLClient,
+    epic_uuid: &str,
+    input: &Value,
+    epic_slug: &str,
+) -> Result<Value, String> {
+    let data = client.query(
+        crate::queries::INITIATIVE_UPDATE_MUTATION,
+        serde_json::json!({ "id": epic_uuid, "input": input }),
+    )?;
+    let success = data
+        .get("initiativeUpdate")
+        .and_then(|u| u.get("success"))
+        .and_then(|s| s.as_bool())
+        .unwrap_or(false);
+    if !success {
+        return Err(format!("Failed to update epic {epic_slug}."));
+    }
+    data.get("initiativeUpdate")
+        .and_then(|u| u.get("initiative"))
+        .cloned()
+        .ok_or_else(|| "Could not parse updated initiative from response".to_string())
+}
+
+pub(crate) fn run_project_update(
+    client: &dyn GraphQLClient,
+    project_uuid: &str,
+    input: &Value,
+) -> Result<Value, String> {
+    let data = client.query(
+        crate::queries::PROJECT_UPDATE_MUTATION,
+        serde_json::json!({ "id": project_uuid, "input": input }),
+    )?;
+    let success = data
+        .get("projectUpdate")
+        .and_then(|u| u.get("success"))
+        .and_then(|s| s.as_bool())
+        .unwrap_or(false);
+    if !success {
+        return Err(format!("Failed to update project {project_uuid}."));
+    }
+    data.get("projectUpdate")
+        .and_then(|u| u.get("project"))
+        .cloned()
+        .ok_or_else(|| "Could not parse updated project from response".to_string())
+}
+
+pub(crate) fn create_comment(
+    client: &dyn GraphQLClient,
+    input: Value,
+    target: &str,
+) -> Result<(), String> {
+    let data = client.query(
+        crate::queries::COMMENT_MUTATION,
+        serde_json::json!({ "input": input }),
+    )?;
+    let success = data
+        .get("commentCreate")
+        .and_then(|c| c.get("success"))
+        .and_then(|s| s.as_bool())
+        .unwrap_or(false);
+    if success {
+        Ok(())
+    } else {
+        Err(format!("Failed to add comment to {target}"))
+    }
+}
+
+/// Returns the UUID of the epic's single backing project, or:
+/// - `Ok(None)` if the epic has zero backing projects (caller decides what to do),
+/// - `Err(...)` if it has more than one.
+///
+/// MVP rejects the multi-project case loud: `lql` cannot pick the right target
+/// on the user's behalf, and silently writing to the first one would be a
+/// surprise.
+fn resolve_single_backing_project_id(
+    epic: &Value,
+    epic_slug: &str,
+) -> Result<Option<String>, String> {
+    let projects = epic
+        .get("projects")
+        .and_then(|p| p.get("nodes"))
+        .and_then(|n| n.as_array())
+        .cloned()
+        .unwrap_or_default();
+    match projects.len() {
+        0 => Ok(None),
+        1 => Ok(Some(
+            projects[0]
+                .get("id")
+                .and_then(|v| v.as_str())
+                .ok_or("Epic project has no id")?
+                .to_string(),
+        )),
+        n => Err(format!(
+            "Epic \"{epic_slug}\" has {n} backing projects. \
+             `lql epic update`/`comment` only work when the epic has a single backing project."
+        )),
+    }
+}
+
+/// Returns an error if the epic has no backing project — for callers that
+/// require one (update, comment). Suggests `lql epic add` so the user has a
+/// clear path forward without `lql` silently creating projects on their
+/// behalf.
+fn require_backing_project_id(epic: &Value, epic_slug: &str) -> Result<String, String> {
+    resolve_single_backing_project_id(epic, epic_slug)?
+        .ok_or_else(|| {
+            format!(
+                "Epic \"{epic_slug}\" has no backing project. \
+                 Run `lql epic add {epic_slug} <ISSUE-ID>` to create one, or use `lql epic create`."
+            )
+        })
+}
+
+/// Shallow check: TimelessDate is `YYYY-MM-DD`. Linear will reject impossible
+/// dates anyway; we just block obvious typos before the API round-trip.
+pub(crate) fn validate_target_date(date: &str) -> Result<(), String> {
+    let bytes = date.as_bytes();
+    let well_shaped = bytes.len() == 10
+        && bytes[4] == b'-'
+        && bytes[7] == b'-'
+        && bytes
+            .iter()
+            .enumerate()
+            .all(|(i, &c)| matches!(i, 4 | 7) || c.is_ascii_digit());
+    if !well_shaped {
+        return Err(format!(
+            "--target-date must be YYYY-MM-DD (got \"{date}\")"
+        ));
+    }
     Ok(())
 }
 
@@ -772,5 +1069,153 @@ mod tests {
             calls.contains(&"initiativeDelete"),
             "a failed link must roll back the initiative: {calls:?}"
         );
+    }
+
+    // ===================================================================
+    // `lql epic update` — acceptance tests from
+    // docs/epic-update-contract.md.
+    // ===================================================================
+
+    fn empty_update_opts(epic_id: &str) -> EpicUpdateOpts {
+        EpicUpdateOpts {
+            epic_id: epic_id.to_string(),
+            title: None,
+            description: None,
+            description_file: None,
+            summary: None,
+            target_date: None,
+            json: false,
+        }
+    }
+
+    #[test]
+    fn epic_update_requires_at_least_one_flag() {
+        let opts = empty_update_opts("pre-locale");
+        let err = build_epic_update_inputs(&opts).unwrap_err();
+        assert!(
+            err.contains("No update fields provided"),
+            "should require at least one flag, got: {err}"
+        );
+    }
+
+    #[test]
+    fn epic_update_rejects_description_and_description_file_together() {
+        let opts = EpicUpdateOpts {
+            description: Some("inline".to_string()),
+            description_file: Some("/tmp/plan.md".to_string()),
+            ..empty_update_opts("pre-locale")
+        };
+        let err = build_epic_update_inputs(&opts).unwrap_err();
+        assert!(
+            err.contains("mutually exclusive"),
+            "should reject both body sources, got: {err}"
+        );
+    }
+
+    #[test]
+    fn epic_update_routes_long_body_to_content_not_description() {
+        // A body well past Linear's ~255-char `description` cap. The same
+        // failure mode as `epic create`: writing it to `description` triggers
+        // "Argument Validation Error".
+        let body = "z".repeat(5000);
+        let opts = EpicUpdateOpts {
+            description: Some(body.clone()),
+            ..empty_update_opts("pre-locale")
+        };
+        let inputs = build_epic_update_inputs(&opts).unwrap();
+        assert_eq!(inputs.initiative["content"], serde_json::json!(body));
+        assert!(inputs.initiative.get("description").is_none());
+        assert_eq!(inputs.project["content"], serde_json::json!(body));
+        assert!(inputs.project.get("description").is_none());
+        assert_eq!(inputs.fields, vec!["content"]);
+    }
+
+    #[test]
+    fn epic_update_title_applies_to_initiative_and_truncated_project_name() {
+        // Linear caps `ProjectCreateInput.name` / `ProjectUpdateInput.name`
+        // at 80 chars. Epic titles routinely run longer, so the backing
+        // project name must be truncated while the initiative keeps the
+        // full title.
+        let long_title = "X".repeat(200);
+        let opts = EpicUpdateOpts {
+            title: Some(long_title.clone()),
+            ..empty_update_opts("pre-locale")
+        };
+        let inputs = build_epic_update_inputs(&opts).unwrap();
+        assert_eq!(inputs.initiative["name"], serde_json::json!(long_title));
+        let project_name = inputs.project["name"].as_str().unwrap();
+        assert!(
+            project_name.chars().count() <= 80,
+            "backing project name must fit Linear's 80-char cap"
+        );
+        assert!(project_name.ends_with('…'));
+    }
+
+    #[test]
+    fn epic_update_summary_targets_short_description_field() {
+        let opts = EpicUpdateOpts {
+            summary: Some("Short summary".to_string()),
+            ..empty_update_opts("pre-locale")
+        };
+        let inputs = build_epic_update_inputs(&opts).unwrap();
+        assert_eq!(inputs.initiative["description"], "Short summary");
+        assert_eq!(inputs.project["description"], "Short summary");
+        // Long-body `content` must NOT be touched by --summary.
+        assert!(inputs.initiative.get("content").is_none());
+    }
+
+    #[test]
+    fn epic_update_target_date_must_be_iso() {
+        let opts = EpicUpdateOpts {
+            target_date: Some("tomorrow".to_string()),
+            ..empty_update_opts("pre-locale")
+        };
+        let err = build_epic_update_inputs(&opts).unwrap_err();
+        assert!(err.contains("YYYY-MM-DD"), "should reject non-ISO date, got: {err}");
+    }
+
+    #[test]
+    fn epic_update_target_date_accepts_iso() {
+        let opts = EpicUpdateOpts {
+            target_date: Some("2026-06-15".to_string()),
+            ..empty_update_opts("pre-locale")
+        };
+        let inputs = build_epic_update_inputs(&opts).unwrap();
+        assert_eq!(inputs.initiative["targetDate"], "2026-06-15");
+        assert_eq!(inputs.project["targetDate"], "2026-06-15");
+    }
+
+    #[test]
+    fn require_backing_project_id_zero_projects_returns_hint() {
+        let epic = serde_json::json!({"projects": {"nodes": []}});
+        let err = require_backing_project_id(&epic, "pre-locale").unwrap_err();
+        assert!(
+            err.contains("lql epic add"),
+            "0-project case must point users to `lql epic add`, got: {err}"
+        );
+    }
+
+    #[test]
+    fn require_backing_project_id_multiple_projects_fails_loud() {
+        let epic = serde_json::json!({
+            "projects": {"nodes": [
+                {"id": "p-1"},
+                {"id": "p-2"},
+            ]}
+        });
+        let err = require_backing_project_id(&epic, "pre-locale").unwrap_err();
+        assert!(
+            err.contains("2 backing projects"),
+            ">1 project must fail loud, got: {err}"
+        );
+    }
+
+    #[test]
+    fn require_backing_project_id_single_project_returns_id() {
+        let epic = serde_json::json!({
+            "projects": {"nodes": [{"id": "project-uuid"}]}
+        });
+        let id = require_backing_project_id(&epic, "pre-locale").unwrap();
+        assert_eq!(id, "project-uuid");
     }
 }

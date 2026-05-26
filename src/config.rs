@@ -241,7 +241,7 @@ QIN = "Use: --team PROD --label phoenix"
     fn test_retired_team_tok() {
         let config = test_config();
         let cwd = Path::new("/tmp");
-        let result = config.resolve_team(Some("TOK"), &cwd);
+        let result = config.resolve_team(Some("TOK"), cwd);
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("retired"));
     }
@@ -251,7 +251,7 @@ QIN = "Use: --team PROD --label phoenix"
     fn test_retired_team_qin() {
         let config = test_config();
         let cwd = Path::new("/tmp");
-        let result = config.resolve_team(Some("QIN"), &cwd);
+        let result = config.resolve_team(Some("QIN"), cwd);
         assert!(result.is_err());
     }
 

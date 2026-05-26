@@ -441,3 +441,79 @@ pub const VIEWER_QUERY: &str = r#"
   }
 }
 "#;
+
+/// Actualizar epic (Linear initiative)
+///
+/// Field selection mirrors `INITIATIVE_BY_REF_QUERY` so the caller can reuse
+/// the same formatter without a second read-back. As with create, the long
+/// markdown body lives in `content`; `description` is the short summary.
+pub const INITIATIVE_UPDATE_MUTATION: &str = r#"
+mutation UpdateInitiative($id: String!, $input: InitiativeUpdateInput!) {
+  initiativeUpdate(id: $id, input: $input) {
+    success
+    initiative {
+      id
+      slugId
+      name
+      description
+      content
+      status
+      targetDate
+      createdAt
+      url
+    }
+  }
+}
+"#;
+
+/// Actualizar project (backing project de un epic, o project genérico)
+pub const PROJECT_UPDATE_MUTATION: &str = r#"
+mutation UpdateProject($id: String!, $input: ProjectUpdateInput!) {
+  projectUpdate(id: $id, input: $input) {
+    success
+    project {
+      id
+      slugId
+      name
+      description
+      content
+      url
+      targetDate
+      teams(first: 5) {
+        nodes {
+          key
+        }
+      }
+    }
+  }
+}
+"#;
+
+/// Buscar project por slugId / UUID / nombre
+pub const PROJECT_BY_REF_QUERY: &str = r#"
+query ProjectByRef($filter: ProjectFilter) {
+  projects(filter: $filter, first: 1) {
+    nodes {
+      id
+      slugId
+      name
+      description
+      content
+      url
+      targetDate
+      teams(first: 5) {
+        nodes {
+          key
+        }
+      }
+      initiatives(first: 5) {
+        nodes {
+          id
+          slugId
+          name
+        }
+      }
+    }
+  }
+}
+"#;

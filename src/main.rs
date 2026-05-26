@@ -45,6 +45,7 @@ fn main() {
         cli::Command::Doctor => commands::doctor::run(&config),
         cli::Command::Context => commands::context::run(&config),
         cli::Command::Epic(opts) => commands::epic::run(&config, &opts),
+        cli::Command::Project(opts) => commands::project::run(&config, &opts),
         cli::Command::Raw(opts) => commands::raw::run(&config, &opts),
     };
 
