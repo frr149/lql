@@ -8,6 +8,11 @@ on:
   push:
     branches:
       - main
+  # Manual escape hatch: if a push to main fails to spin up the release-plz
+  # job (rare but happens — e.g. PR-merge → push events that don't propagate
+  # to Actions for whatever reason), run `gh workflow run "Release PLZ"` to
+  # nudge it.
+  workflow_dispatch:
 
 jobs:
   release-plz:
