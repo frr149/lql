@@ -170,6 +170,9 @@ lql epic create "Pre-locale ETL rework" --description-file epic.md   # long body
 lql epic view pre-locale-d9994a56fc60
 lql epic add pre-locale-d9994a56fc60 PROD-42 PROD-43                  # assign issues
 
+# Known gap: updating an existing epic body still requires raw GraphQL.
+# See docs/epic-update-contract.md for the implementation contract.
+
 # Diagnostics
 lql doctor    # validate config, auth, API connectivity
 lql context   # show resolved team/project/label for cwd
