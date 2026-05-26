@@ -72,7 +72,7 @@ mod tests {
     // ERR-64b: search con resultados formatea correctamente
     #[test]
     fn test_search_results_toon() {
-        let issues = vec![serde_json::json!({
+        let issues = [serde_json::json!({
             "identifier": "TEST-101",
             "state": {"name": "Backlog", "type": "backlog"},
             "labels": {"nodes": [{"name": "frontend"}]},

@@ -394,6 +394,93 @@ pub fn format_epic_created(epic: &Value) -> String {
     format!("✓ {id} created [{status}] — {title}\n  {url}")
 }
 
+/// Human-readable confirmation for `lql epic update` / `lql project update`.
+pub fn format_epic_updated(slug: &str, fields: &[String]) -> String {
+    if fields.is_empty() {
+        return format!("✓ {slug} updated");
+    }
+    format!("✓ {slug} updated\n  {}", fields.join(", "))
+}
+
+/// Default (non-JSON) view for `lql project view`. Mirrors the epic view
+/// layout: identity line, meta, URL, long body if any, parent initiatives.
+pub fn format_project_view(project: &Value) -> String {
+    let id = project.get("id").and_then(|v| v.as_str()).unwrap_or("?");
+    let slug = project
+        .get("slugId")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty());
+    let name = project
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("(no name)");
+    let teams = project
+        .get("teams")
+        .and_then(|t| t.get("nodes"))
+        .and_then(|n| n.as_array())
+        .map(|nodes| {
+            nodes
+                .iter()
+                .filter_map(|team| team.get("key").and_then(|v| v.as_str()).map(ToOwned::to_owned))
+                .collect::<Vec<String>>()
+        })
+        .unwrap_or_default();
+    let team_str = if teams.is_empty() {
+        "?".to_string()
+    } else {
+        teams.join(",")
+    };
+
+    let slug_part = slug.map(|s| format!(" {s}")).unwrap_or_default();
+    let mut lines = vec![format!("{id}{slug_part} [{team_str}] — {name}")];
+
+    if let Some(target) = project.get("targetDate").and_then(|v| v.as_str()) {
+        lines.push(format!("  Target: {target}"));
+    }
+    if let Some(url) = project.get("url").and_then(|v| v.as_str()) {
+        lines.push(format!("  {url}"));
+    }
+
+    let body = project
+        .get("content")
+        .and_then(|d| d.as_str())
+        .filter(|s| !s.is_empty())
+        .or_else(|| {
+            project
+                .get("description")
+                .and_then(|d| d.as_str())
+                .filter(|s| !s.is_empty())
+        });
+    if let Some(body) = body {
+        lines.push("  ─────".to_string());
+        for line in body.lines() {
+            lines.push(format!("  {line}"));
+        }
+        lines.push("  ─────".to_string());
+    }
+
+    if let Some(initiatives) = project
+        .get("initiatives")
+        .and_then(|i| i.get("nodes"))
+        .and_then(|n| n.as_array())
+        .filter(|nodes| !nodes.is_empty())
+    {
+        let names: Vec<String> = initiatives
+            .iter()
+            .filter_map(|init| {
+                let slug = init.get("slugId").and_then(|v| v.as_str())?;
+                let init_name = init.get("name").and_then(|v| v.as_str()).unwrap_or("?");
+                Some(format!("{slug} \"{init_name}\""))
+            })
+            .collect();
+        if !names.is_empty() {
+            lines.push(format!("  Initiatives: {}", names.join(", ")));
+        }
+    }
+
+    lines.join("\n")
+}
+
 pub fn format_epics_toon(epics: &[&Value]) -> String {
     let toon_epics: Vec<Value> = epics
         .iter()
@@ -513,31 +600,47 @@ pub fn format_epic_view(epic: &Value) -> String {
     }
 
     if !projects.is_empty() {
-        let project_names: Vec<String> = projects
-            .iter()
-            .filter_map(|project| {
-                let name = project.get("name").and_then(|v| v.as_str())?;
-                let teams = project
-                    .get("teams")
-                    .and_then(|t| t.get("nodes"))
-                    .and_then(|n| n.as_array())
-                    .map(|nodes| {
-                        nodes
-                            .iter()
-                            .filter_map(|team| {
-                                team.get("key").and_then(|v| v.as_str()).map(ToOwned::to_owned)
-                            })
-                            .collect::<Vec<String>>()
-                    })
-                    .unwrap_or_default();
-                if teams.is_empty() {
-                    Some(name.to_string())
-                } else {
-                    Some(format!("{name} [{}]", teams.join(",")))
-                }
-            })
-            .collect();
-        lines.push(format!("  Projects: {}", project_names.join(", ")));
+        // Compact contract per docs/epic-update-contract.md: the default,
+        // non-JSON output exposes the backing project id (UUID), slugId and
+        // URL so a follow-up command (`lql project update`, `lql project
+        // comment`, raw mutations) does not need a second introspection round.
+        for project in &projects {
+            let name = project.get("name").and_then(|v| v.as_str()).unwrap_or("(unnamed)");
+            let project_id = project.get("id").and_then(|v| v.as_str()).unwrap_or("?");
+            let slug = project
+                .get("slugId")
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty());
+            let url = project
+                .get("url")
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty());
+            let teams = project
+                .get("teams")
+                .and_then(|t| t.get("nodes"))
+                .and_then(|n| n.as_array())
+                .map(|nodes| {
+                    nodes
+                        .iter()
+                        .filter_map(|team| {
+                            team.get("key").and_then(|v| v.as_str()).map(ToOwned::to_owned)
+                        })
+                        .collect::<Vec<String>>()
+                })
+                .unwrap_or_default();
+            let team_str = if teams.is_empty() {
+                String::new()
+            } else {
+                format!(" [{}]", teams.join(","))
+            };
+            let slug_str = slug.map(|s| format!(" {s}")).unwrap_or_default();
+            lines.push(format!(
+                "  Project: {project_id}{slug_str} \"{name}\"{team_str}"
+            ));
+            if let Some(url) = url {
+                lines.push(format!("    {url}"));
+            }
+        }
     }
 
     let issues = extract_epic_issues(epic);

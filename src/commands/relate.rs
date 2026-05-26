@@ -140,10 +140,10 @@ fn find_relation_id(
                 .and_then(|ri| ri.get("identifier"))
                 .and_then(|id| id.as_str())
                 .unwrap_or("");
-            if target.eq_ignore_ascii_case(to_identifier) {
-                if let Some(id) = rel.get("id").and_then(|id| id.as_str()) {
-                    return Ok(id.to_string());
-                }
+            if target.eq_ignore_ascii_case(to_identifier)
+                && let Some(id) = rel.get("id").and_then(|id| id.as_str())
+            {
+                return Ok(id.to_string());
             }
         }
     }
@@ -160,10 +160,10 @@ fn find_relation_id(
                 .and_then(|ri| ri.get("identifier"))
                 .and_then(|id| id.as_str())
                 .unwrap_or("");
-            if source.eq_ignore_ascii_case(to_identifier) {
-                if let Some(id) = rel.get("id").and_then(|id| id.as_str()) {
-                    return Ok(id.to_string());
-                }
+            if source.eq_ignore_ascii_case(to_identifier)
+                && let Some(id) = rel.get("id").and_then(|id| id.as_str())
+            {
+                return Ok(id.to_string());
             }
         }
     }
