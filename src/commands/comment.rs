@@ -41,6 +41,17 @@ pub fn run(config: &Config, opts: &CommentOpts) -> Result<(), String> {
     Ok(())
 }
 
+/// Sources for a comment body, shared across `lql comment`, `lql epic comment`
+/// and `lql project comment`.
+pub struct CommentSource<'a> {
+    pub body: Option<&'a str>,
+    pub body_flag: Option<&'a str>,
+    pub file: Option<&'a str>,
+    /// Hint shown when no body source is provided on a TTY (so each command can
+    /// say `lql comment …`, `lql epic comment …`, etc.).
+    pub usage_hint: &'a str,
+}
+
 /// Resuelve el body del comentario: inline > --body flag > fichero > reader (stdin)
 /// Extraído para ser testeable sin stdin real
 pub fn resolve_body(
@@ -48,11 +59,31 @@ pub fn resolve_body(
     reader: &mut dyn Read,
     is_terminal: bool,
 ) -> Result<String, String> {
-    let body = if let Some(ref text) = opts.body {
-        text.clone()
-    } else if let Some(ref text) = opts.body_flag {
-        text.clone()
-    } else if let Some(ref path) = opts.file {
+    resolve_body_from_source(
+        &CommentSource {
+            body: opts.body.as_deref(),
+            body_flag: opts.body_flag.as_deref(),
+            file: opts.file.as_deref(),
+            usage_hint: "lql comment ID \"text\" or --file or stdin",
+        },
+        reader,
+        is_terminal,
+    )
+}
+
+/// Same precedence as `resolve_body`, but parametric in the source — used by
+/// commands that don't own a `CommentOpts` (e.g. `epic comment`, `project
+/// comment`).
+pub fn resolve_body_from_source(
+    source: &CommentSource<'_>,
+    reader: &mut dyn Read,
+    is_terminal: bool,
+) -> Result<String, String> {
+    let body = if let Some(text) = source.body {
+        text.to_string()
+    } else if let Some(text) = source.body_flag {
+        text.to_string()
+    } else if let Some(path) = source.file {
         std::fs::read_to_string(path)
             .map_err(|e| format!("Could not read file {path}: {e}"))?
     } else if !is_terminal {
@@ -62,10 +93,10 @@ pub fn resolve_body(
             .map_err(|e| format!("Could not read from stdin: {e}"))?;
         buf
     } else {
-        return Err(
-            "No comment body provided. Use: lql comment ID \"texto\" or --file or stdin"
-                .to_string(),
-        );
+        return Err(format!(
+            "No comment body provided. Use: {}",
+            source.usage_hint
+        ));
     };
 
     if body.trim().is_empty() {

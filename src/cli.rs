@@ -43,6 +43,8 @@ pub enum Command {
     Context,
     /// Manage epics (Linear initiatives with a backing project)
     Epic(EpicOpts),
+    /// Manage Linear projects (view, update, comment)
+    Project(ProjectOpts),
     /// Execute a raw GraphQL query
     Raw(RawOpts),
 }
@@ -381,6 +383,10 @@ pub enum EpicAction {
     View(EpicViewOpts),
     /// Assign issues to an epic
     Add(EpicAddOpts),
+    /// Update an existing epic (title, body, summary, target date)
+    Update(EpicUpdateOpts),
+    /// Add a comment to an epic (initiative + backing project, if any)
+    Comment(EpicCommentOpts),
 }
 
 #[derive(Parser, Debug)]
@@ -444,6 +450,127 @@ pub struct EpicAddOpts {
     pub issue_ids: Vec<String>,
 }
 
+#[derive(Parser, Debug)]
+pub struct EpicUpdateOpts {
+    /// Epic ID (slugId, UUID, or Linear URL)
+    pub epic_id: String,
+
+    /// Change title (applied to initiative + backing project, truncated)
+    #[arg(long)]
+    pub title: Option<String>,
+
+    /// Replace the long markdown body (initiative `content` + backing project `content`)
+    #[arg(short, long)]
+    pub description: Option<String>,
+
+    /// Replace the long markdown body from a file
+    #[arg(long)]
+    pub description_file: Option<String>,
+
+    /// Update the short initiative summary (Linear `description`, not the long body)
+    #[arg(long)]
+    pub summary: Option<String>,
+
+    /// Update the initiative target date (YYYY-MM-DD)
+    #[arg(long)]
+    pub target_date: Option<String>,
+
+    /// Output as JSON
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct EpicCommentOpts {
+    /// Epic ID (slugId, UUID, or Linear URL)
+    pub epic_id: String,
+
+    /// Comment text
+    pub body: Option<String>,
+
+    /// Comment text (alias for positional — agents prefer named flags)
+    #[arg(long = "body", hide = true)]
+    pub body_flag: Option<String>,
+
+    /// Comment from file
+    #[arg(long)]
+    pub file: Option<String>,
+}
+
+#[derive(Parser, Debug)]
+pub struct ProjectOpts {
+    #[command(subcommand)]
+    pub action: ProjectAction,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ProjectAction {
+    /// View project details
+    #[command(alias = "show", alias = "get")]
+    View(ProjectViewOpts),
+    /// Update a project (title, body, summary, target date)
+    Update(ProjectUpdateOpts),
+    /// Add a comment to a project
+    Comment(ProjectCommentOpts),
+}
+
+#[derive(Parser, Debug)]
+pub struct ProjectViewOpts {
+    /// Project ID (UUID, slugId, or name)
+    pub project_ref: String,
+
+    /// Output as JSON
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct ProjectUpdateOpts {
+    /// Project ID (UUID, slugId, or name)
+    pub project_ref: String,
+
+    /// Change project name
+    #[arg(long)]
+    pub title: Option<String>,
+
+    /// Replace the long markdown body (project `content`)
+    #[arg(short, long)]
+    pub description: Option<String>,
+
+    /// Replace the long markdown body from a file
+    #[arg(long)]
+    pub description_file: Option<String>,
+
+    /// Update the short project summary (Linear `description`, not the long body)
+    #[arg(long)]
+    pub summary: Option<String>,
+
+    /// Update the project target date (YYYY-MM-DD)
+    #[arg(long)]
+    pub target_date: Option<String>,
+
+    /// Output as JSON
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct ProjectCommentOpts {
+    /// Project ID (UUID, slugId, or name)
+    pub project_ref: String,
+
+    /// Comment text
+    pub body: Option<String>,
+
+    /// Comment text (alias for positional — agents prefer named flags)
+    #[arg(long = "body", hide = true)]
+    pub body_flag: Option<String>,
+
+    /// Comment from file
+    #[arg(long)]
+    pub file: Option<String>,
+}
+
 impl CreateOpts {
     pub fn resolved_title(&self) -> Result<&str, String> {
         match (&self.title, &self.title_flag) {
@@ -474,6 +601,13 @@ pub fn command_prefers_machine_mode(command: &Command) -> bool {
             EpicAction::List(list) => list.json,
             EpicAction::View(view) => view.json,
             EpicAction::Add(_) => false,
+            EpicAction::Update(update) => update.json,
+            EpicAction::Comment(_) => false,
+        },
+        Command::Project(opts) => match &opts.action {
+            ProjectAction::View(view) => view.json,
+            ProjectAction::Update(update) => update.json,
+            ProjectAction::Comment(_) => false,
         },
         Command::Labels(opts) => match &opts.action {
             Some(LabelsAction::List(list)) => list.json,
@@ -1193,6 +1327,149 @@ mod tests {
             assert!(opts.body.is_none());
         } else {
             panic!("Expected Comment command");
+        }
+    }
+
+    // ===================================================================
+    // `lql epic update` / `lql epic comment` / `lql project ...` parsing.
+    // Acceptance tests from docs/epic-update-contract.md.
+    // ===================================================================
+
+    #[test]
+    fn test_epic_update_accepts_description_file() {
+        let cli = Cli::try_parse_from([
+            "lql", "epic", "update", "cb19ff35fa52", "--description-file", "plan.md",
+        ]).unwrap();
+        if let Command::Epic(opts) = cli.command {
+            if let EpicAction::Update(update) = opts.action {
+                assert_eq!(update.epic_id, "cb19ff35fa52");
+                assert_eq!(update.description_file.as_deref(), Some("plan.md"));
+            } else {
+                panic!("Expected EpicAction::Update");
+            }
+        } else {
+            panic!("Expected Epic command");
+        }
+    }
+
+    #[test]
+    fn test_epic_update_accepts_target_date() {
+        let cli = Cli::try_parse_from([
+            "lql", "epic", "update", "cb19ff35fa52",
+            "--title", "New title",
+            "--summary", "Short",
+            "--target-date", "2026-06-15",
+        ]).unwrap();
+        if let Command::Epic(opts) = cli.command {
+            if let EpicAction::Update(update) = opts.action {
+                assert_eq!(update.title.as_deref(), Some("New title"));
+                assert_eq!(update.summary.as_deref(), Some("Short"));
+                assert_eq!(update.target_date.as_deref(), Some("2026-06-15"));
+            } else {
+                panic!("Expected EpicAction::Update");
+            }
+        } else {
+            panic!("Expected Epic command");
+        }
+    }
+
+    #[test]
+    fn test_epic_comment_inline_body() {
+        let cli = Cli::try_parse_from([
+            "lql", "epic", "comment", "cb19ff35fa52", "Progress update",
+        ]).unwrap();
+        if let Command::Epic(opts) = cli.command {
+            if let EpicAction::Comment(comment) = opts.action {
+                assert_eq!(comment.epic_id, "cb19ff35fa52");
+                assert_eq!(comment.body.as_deref(), Some("Progress update"));
+                assert!(comment.body_flag.is_none());
+            } else {
+                panic!("Expected EpicAction::Comment");
+            }
+        } else {
+            panic!("Expected Epic command");
+        }
+    }
+
+    #[test]
+    fn test_epic_comment_from_file() {
+        let cli = Cli::try_parse_from([
+            "lql", "epic", "comment", "cb19ff35fa52", "--file", "/tmp/c.md",
+        ]).unwrap();
+        if let Command::Epic(opts) = cli.command {
+            if let EpicAction::Comment(comment) = opts.action {
+                assert!(comment.body.is_none());
+                assert_eq!(comment.file.as_deref(), Some("/tmp/c.md"));
+            } else {
+                panic!("Expected EpicAction::Comment");
+            }
+        } else {
+            panic!("Expected Epic command");
+        }
+    }
+
+    #[test]
+    fn test_project_view_parses() {
+        let cli = Cli::try_parse_from(["lql", "project", "view", "Bastidor v1.0"]).unwrap();
+        if let Command::Project(opts) = cli.command {
+            if let ProjectAction::View(view) = opts.action {
+                assert_eq!(view.project_ref, "Bastidor v1.0");
+                assert!(!view.json);
+            } else {
+                panic!("Expected ProjectAction::View");
+            }
+        } else {
+            panic!("Expected Project command");
+        }
+    }
+
+    #[test]
+    fn test_project_view_aliases() {
+        // `show` and `get` should both alias `view` for parity with `lql view`.
+        for alias in ["show", "get"] {
+            let cli = Cli::try_parse_from(["lql", "project", alias, "some-slug"]).unwrap();
+            if let Command::Project(opts) = cli.command {
+                assert!(matches!(opts.action, ProjectAction::View(_)), "alias {alias}");
+            } else {
+                panic!("Expected Project command for alias {alias}");
+            }
+        }
+    }
+
+    #[test]
+    fn test_project_update_parses() {
+        let cli = Cli::try_parse_from([
+            "lql", "project", "update", "some-slug",
+            "--description-file", "plan.md",
+            "--target-date", "2026-06-15",
+        ]).unwrap();
+        if let Command::Project(opts) = cli.command {
+            if let ProjectAction::Update(update) = opts.action {
+                assert_eq!(update.project_ref, "some-slug");
+                assert_eq!(update.description_file.as_deref(), Some("plan.md"));
+                assert_eq!(update.target_date.as_deref(), Some("2026-06-15"));
+            } else {
+                panic!("Expected ProjectAction::Update");
+            }
+        } else {
+            panic!("Expected Project command");
+        }
+    }
+
+    #[test]
+    fn test_project_comment_parses() {
+        let cli = Cli::try_parse_from([
+            "lql", "project", "comment", "some-slug", "Progress note",
+        ]).unwrap();
+        if let Command::Project(opts) = cli.command {
+            if let ProjectAction::Comment(comment) = opts.action {
+                assert_eq!(comment.project_ref, "some-slug");
+                assert_eq!(comment.body.as_deref(), Some("Progress note"));
+            } else {
+                panic!("Expected ProjectAction::Comment");
+            }
+        } else {
+            panic!("Expected Project command");
         }
     }
 }
