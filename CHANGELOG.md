@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0](https://github.com/frr149/lql/releases/tag/v1.6.0) - 2026-05-26
+
+### Added
+
+- `lql epic update` — update title, body (`--description` / `--description-file`), summary, and target date on an existing epic. Applies the change to both the Linear initiative and its single backing project atomically. Fails loud with a hint when the epic has zero or more than one backing projects.
+- `lql epic comment` — add a comment to an existing epic. Writes to the initiative directly and mirrors the comment onto the backing project when one exists, so it shows up in both surfaces.
+- `lql project view / update / comment` — generic project commands accepting UUID, slugId, or case-insensitive name as the project reference. Closes the agent escape hatch that required `lql raw 'mutation { projectUpdate(...) }'` for normal planning workflows.
+- `lql epic view` default (non-JSON) output now exposes the backing project's UUID, slugId, and URL, so a follow-up command does not need a second introspection round.
+
 ## [1.5.1](https://github.com/frr149/lql/releases/tag/v1.5.1) - 2026-05-20
 
 ### Fixed
