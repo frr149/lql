@@ -1,6 +1,6 @@
 [package]
 name = "lql"
-version = "1.5.1"
+version = "1.6.0"
 edition = "2024"
 description = "Linear Query Language — CLI for Linear optimized for LLM consumption"
 authors = ["Fernando Rodriguez Romero <f@frr.dev>"]
