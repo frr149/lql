@@ -19,7 +19,7 @@ pub fn run(config: &Config, opts: &ProjectOpts) -> Result<(), String> {
 }
 
 fn run_view(config: &Config, opts: &ProjectViewOpts) -> Result<(), String> {
-    let client = Client::new(&config.auth.api_key_ref)?;
+    let client = Client::new(&config.auth)?;
     let project = find_project_by_ref(&client, &opts.project_ref)?;
 
     if opts.json {
@@ -73,7 +73,7 @@ fn run_update(config: &Config, opts: &ProjectUpdateOpts) -> Result<(), String> {
         );
     }
 
-    let client = Client::new(&config.auth.api_key_ref)?;
+    let client = Client::new(&config.auth)?;
     let project = find_project_by_ref(&client, &opts.project_ref)?;
     let project_id = project
         .get("id")
@@ -102,7 +102,7 @@ fn run_update(config: &Config, opts: &ProjectUpdateOpts) -> Result<(), String> {
 }
 
 fn run_comment(config: &Config, opts: &ProjectCommentOpts) -> Result<(), String> {
-    let client = Client::new(&config.auth.api_key_ref)?;
+    let client = Client::new(&config.auth)?;
 
     let is_terminal = std::io::stdin().is_terminal();
     let body = resolve_body_from_source(
