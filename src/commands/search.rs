@@ -4,7 +4,7 @@ use crate::config::Config;
 use crate::format;
 
 pub fn run(config: &Config, opts: &SearchOpts) -> Result<(), String> {
-    let client = Client::new(&config.auth.api_key_ref)?;
+    let client = Client::new(&config.auth)?;
 
     let mut filter = serde_json::json!({});
 

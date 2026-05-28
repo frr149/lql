@@ -5,16 +5,22 @@ pub fn run(config: &Config) -> Result<(), String> {
     let mut all_ok = true;
 
     // 1. Config
-    println!("✓ Config loaded from {}", crate::config::config_path().display());
+    let cfg_path = crate::config::config_path();
+    if cfg_path.exists() {
+        println!("✓ Config loaded from {}", cfg_path.display());
+    } else {
+        println!("ℹ No config file at {} — using defaults", cfg_path.display());
+    }
 
     // 2. Auth
-    let client = match Client::new(&config.auth.api_key_ref) {
+    let source = crate::auth::describe_source(&config.auth);
+    let client = match Client::new(&config.auth) {
         Ok(c) => {
-            println!("✓ API key loaded from 1Password");
+            println!("✓ API key loaded ({source})");
             c
         }
         Err(e) => {
-            println!("✗ API key not found. Ferris is sad. 🦀💧");
+            println!("✗ API key not found.");
             println!("  {e}");
             return Ok(()); // No podemos continuar sin auth
         }
@@ -88,7 +94,7 @@ pub fn run(config: &Config) -> Result<(), String> {
     }
 
     if all_ok {
-        println!("\n✓ All checks passed. Ferris approves. 🦀");
+        println!("\n✓ All checks passed.");
     }
 
     Ok(())

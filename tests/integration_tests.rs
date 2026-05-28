@@ -1,14 +1,14 @@
-/// Tests de integración contra la API real de Linear.
+/// Integration tests against the real Linear API.
 ///
-/// Estos tests están marcados con #[ignore] por defecto.
-/// Ejecutar con: cargo test -- --ignored
+/// Marked `#[ignore]` by default. Run with: `cargo test -- --ignored`.
 ///
-/// Requieren:
-/// - API key de Linear en 1Password (op read "op://FRR DEV/Linear/api-key")
-/// - Conexión a internet
-/// - Issues reales en Linear (PROD, TOOL teams)
+/// Requirements:
+/// - A Linear API key resolvable by lql (see README → Authentication).
+///   Easiest: `export LINEAR_API_KEY=lin_api_...`.
+/// - Internet connection.
+/// - Issues in your Linear workspace whose IDs match the fixtures used below.
 ///
-/// NOTA: Estos tests LEEN de Linear, nunca escriben. Son seguros de ejecutar.
+/// NOTE: These tests only READ from Linear, never write. Safe to run.
 use std::process::Command;
 
 /// Helper: ejecuta lql con args y devuelve (exit_code, stdout, stderr)

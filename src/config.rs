@@ -2,8 +2,9 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 pub struct Config {
+    #[serde(default)]
     pub auth: AuthConfig,
     #[serde(default)]
     pub defaults: Defaults,
@@ -17,12 +18,23 @@ pub struct Config {
     pub retired_teams: HashMap<String, String>,
 }
 
-#[derive(Debug, Deserialize)]
+/// Authentication configuration.
+///
+/// Credential resolution order (first match wins):
+///   1. `LINEAR_API_KEY` env var
+///   2. `[auth].command`  — arbitrary credential helper (e.g. `["pass", "show", "linear"]`)
+///   3. `[auth].api_key_ref` — sugar for `["op", "read", "<ref>"]` (1Password CLI)
+///
+/// With none set, the user gets a guided error message.
+#[derive(Debug, Deserialize, Default, Clone)]
 pub struct AuthConfig {
-    pub api_key_ref: String,
+    #[serde(default)]
+    pub api_key_ref: Option<String>,
+    #[serde(default)]
+    pub command: Option<Vec<String>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Defaults {
     #[serde(default = "default_sort")]
     #[allow(dead_code)]
@@ -121,7 +133,8 @@ impl Config {
             None => {
                 let cwd_display = cwd.display();
                 Err(format!(
-                    "Could not detect team from {cwd_display}. Use --team <TEAM>. Available: PROD, CONT, PRIV, TOOL, KC"
+                    "Could not detect team from {cwd_display}. Use --team <TEAM> or add a [context-map] entry in {}. See: lql doctor",
+                    config_path().display()
                 ))
             }
         }
@@ -145,11 +158,14 @@ pub fn config_path() -> PathBuf {
 
 pub fn load() -> Result<Config, String> {
     let path = config_path();
-    let content = std::fs::read_to_string(&path)
-        .map_err(|e| format!("Could not read {}: {e}", path.display()))?;
-    let config: Config =
-        toml::from_str(&content).map_err(|e| format!("Invalid config {}: {e}", path.display()))?;
-    Ok(config)
+    match std::fs::read_to_string(&path) {
+        Ok(content) => toml::from_str(&content)
+            .map_err(|e| format!("Invalid config {}: {e}", path.display())),
+        // Missing config is OK: defaults work as long as LINEAR_API_KEY is set.
+        // Surface I/O errors other than NotFound so permission/format issues stay visible.
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Config::default()),
+        Err(e) => Err(format!("Could not read {}: {e}", path.display())),
+    }
 }
 
 #[cfg(test)]
@@ -159,7 +175,7 @@ mod tests {
     fn test_config() -> Config {
         let toml_str = r#"
 [auth]
-api_key_ref = "op://FRR DEV/Linear/api-key"
+api_key_ref = "op://Personal/Linear/api-key"
 
 [defaults]
 sort = "priority"
