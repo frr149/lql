@@ -367,11 +367,21 @@ mod tests {
         assert!(err.contains("linear.app/settings/api"), "{err}");
     }
 
-    // No personal vault leak anywhere in the user-facing error.
+    // Every op:// reference in the user-facing message must use the
+    // placeholder form, not a real vault name. Checking a positive property
+    // ("uses a placeholder") avoids hardcoding any specific vault into a
+    // public source file.
     #[test]
-    fn no_credential_message_does_not_leak_personal_vault() {
+    fn no_credential_message_uses_only_placeholder_examples() {
         let err = no_credential_configured_message();
-        assert!(!err.contains("FRR DEV"), "leaked private vault name");
+        for line in err.lines() {
+            if line.contains("op://") {
+                assert!(
+                    line.contains("<your-vault>"),
+                    "op:// reference without <your-vault> placeholder: {line}"
+                );
+            }
+        }
     }
 
     #[test]
