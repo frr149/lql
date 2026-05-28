@@ -1,4 +1,5 @@
 use crate::auth;
+use crate::config::AuthConfig;
 use serde_json::Value;
 use std::thread;
 use std::time::Duration;
@@ -86,8 +87,8 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(api_key_ref: &str) -> Result<Self, String> {
-        let api_key = auth::get_api_key(api_key_ref)?;
+    pub fn new(auth: &AuthConfig) -> Result<Self, String> {
+        let api_key = auth::get_api_key(auth)?;
         let http = reqwest::blocking::Client::new();
         Ok(Self { api_key, http })
     }

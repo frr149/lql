@@ -3,7 +3,7 @@ use crate::client::{Client, GraphQLClient, LinearMeta};
 use crate::config::Config;
 
 pub fn run(config: &Config, opts: &LabelsOpts) -> Result<(), String> {
-    let client = Client::new(&config.auth.api_key_ref)?;
+    let client = Client::new(&config.auth)?;
 
     match &opts.action {
         None => list(&client, opts.json, opts.team.as_deref()),

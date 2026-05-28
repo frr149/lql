@@ -5,7 +5,7 @@ use crate::config::Config;
 use crate::format;
 
 pub fn run(config: &Config, opts: &ViewOpts) -> Result<(), String> {
-    let client = Client::new(&config.auth.api_key_ref)?;
+    let client = Client::new(&config.auth)?;
     let issue = find_issue_by_identifier(&client, &opts.issue_id)?;
 
     if opts.json {
@@ -23,7 +23,7 @@ pub fn run(config: &Config, opts: &ViewOpts) -> Result<(), String> {
 }
 
 pub fn run_comments(config: &Config, opts: &CommentsOpts) -> Result<(), String> {
-    let client = Client::new(&config.auth.api_key_ref)?;
+    let client = Client::new(&config.auth)?;
     let issue = find_issue_by_identifier(&client, &opts.issue_id)?;
 
     if opts.json {

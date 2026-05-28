@@ -5,7 +5,7 @@ use crate::config::Config;
 use std::io::{IsTerminal, Read};
 
 pub fn run(config: &Config, opts: &CommentOpts) -> Result<(), String> {
-    let client = Client::new(&config.auth.api_key_ref)?;
+    let client = Client::new(&config.auth)?;
 
     // Resolver issue UUID
     let issue = find_issue_by_identifier(&client, &opts.issue_id)?;

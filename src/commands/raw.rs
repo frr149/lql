@@ -3,7 +3,7 @@ use crate::client::{Client, GraphQLClient};
 use crate::config::Config;
 
 pub fn run(config: &Config, opts: &RawOpts) -> Result<(), String> {
-    let client = Client::new(&config.auth.api_key_ref)?;
+    let client = Client::new(&config.auth)?;
 
     // Obtener query: inline > fichero
     let query = if let Some(ref q) = opts.query {

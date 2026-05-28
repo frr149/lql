@@ -125,13 +125,13 @@ PROD-529 [Backlog] wuwei — Mover media a Yottamaster (4d, due:Mar 21)
 
 **Estructura**: `ID [State] labels — Title (age, due)`
 
-| Elemento                  | Por qué ahí                                  | Ejemplo             |
-| ------------------------- | -------------------------------------------- | ------------------- |
-| ID primero                | El LLM lo necesita para el siguiente comando | `PROD-587`          |
-| [State] en brackets       | Delimitador visual no ambiguo, posición fija | `[Backlog]`         |
-| Labels sin brackets       | Separados por coma, no confundir con state   | `qinqin,bug`        |
-| Em-dash separador         | No se confunde con guiones en títulos        | `—`                 |
-| Metadata entre paréntesis | Age siempre, due solo si existe              | `(14d, overdue!)`   |
+| Elemento                  | Por qué ahí                                  | Ejemplo               |
+| ------------------------- | -------------------------------------------- | --------------------- |
+| ID primero                | El LLM lo necesita para el siguiente comando | `PROD-587`            |
+| [State] en brackets       | Delimitador visual no ambiguo, posición fija | `[Backlog]`           |
+| Labels sin brackets       | Separados por coma, no confundir con state   | `qinqin,bug`          |
+| Em-dash separador         | No se confunde con guiones en títulos        | `—`                   |
+| Metadata entre paréntesis | Age siempre, due solo si existe              | `(14d, overdue!)`     |
 | Footer                    | Conteo por estado — ahorra al LLM contar     | `── 3 issues (...)` |
 
 **Por qué no TSV**: el LLM lee texto, no tablas. Títulos largos rompen columnas fijas.
@@ -407,7 +407,7 @@ lql raw --file query.graphql --vars-file vars.json
 
 ```toml
 [auth]
-api_key_ref = "op://FRR DEV/Linear/api-key"  # leído via op read (con cache)
+api_key_ref = "op://<your-vault>/Linear/api-key"  # leído via op read (con cache)
 
 [defaults]
 sort = "priority"        # default para list
@@ -892,7 +892,7 @@ Cuando 1Password no puede leer la API key (Touch ID dismissed, timeout, no sessi
 
 ```
 ✗ Could not read API key from 1Password.
-  Run: op read "op://FRR DEV/Linear/api-key"
+  Run: op read "op://<your-vault>/Linear/api-key"
   If this fails, check: op signin
 ```
 
@@ -903,17 +903,6 @@ No un stack trace de `op`. Un mensaje que dice qué hacer.
 `--project qinqin` debe encontrar "Qinqin". `--project "social publisher"` debe encontrar "Social Publisher". Matching case-insensitive + trim en el resolver de nombres.
 
 Razón: 1 error real por `Project "qinqin" not found. Similar projects: Qinqin`.
-
-## Easter eggs 🦀
-
-| Trigger                    | Output                                                                                  |
-| -------------------------- | --------------------------------------------------------------------------------------- |
-| `lql --version`            | `lql 0.1.0 🦀 "Rewritten in Rust, obviously"`                                           |
-| `lql doctor` (todo OK)     | `✓ All checks passed. Ferris approves. 🦀`                                              |
-| `lql doctor` (auth falla)  | `✗ API key not found. Ferris is sad. 🦀💧`                                              |
-| `lql curate` (0 unlabeled) | `No unlabeled issues. The crab rests. 🦀`                                               |
-| `lql --riir`               | `Already done. You're welcome. 🦀`                                                      |
-| `lql` (sin subcomando)     | Help text con `🦀 Linear Query Language — because everything must be rewritten in Rust` |
 
 ## Apéndice: Catálogo completo de errores que lql elimina
 
@@ -1161,7 +1150,7 @@ ERR-45: stdin con heredoc
 ```
 ERR-46: op read timeout
   Input:  (simular op read que devuelve exit 1 con "authorization timeout")
-  Expect: exit 1, stderr: "✗ Could not read API key from 1Password.\n  Run: op read \"op://FRR DEV/Linear/api-key\"\n  If this fails, check: op signin"
+  Expect: exit 1, stderr: "✗ Could not read API key from 1Password.\n  Run: op read \"op://<your-vault>/Linear/api-key\"\n  If this fails, check: op signin"
 
 ERR-47: op read dismissed
   Input:  (simular op read que devuelve exit 1 con "authorization prompt dismissed")
