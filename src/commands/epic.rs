@@ -24,7 +24,7 @@ pub fn run(config: &Config, opts: &EpicOpts) -> Result<(), String> {
 
 fn run_create(config: &Config, opts: &EpicCreateOpts) -> Result<(), String> {
     let cwd = std::env::current_dir().map_err(|e| format!("Could not get cwd: {e}"))?;
-    let client = Client::new(&config.auth.api_key_ref)?;
+    let client = Client::new(&config.auth)?;
     let meta = LinearMeta::fetch(&client)?;
 
     let team_keys = if let Some(team_keys) = &opts.team {
@@ -114,7 +114,7 @@ fn create_epic(
 }
 
 fn run_list(config: &Config, opts: &EpicListOpts) -> Result<(), String> {
-    let client = Client::new(&config.auth.api_key_ref)?;
+    let client = Client::new(&config.auth)?;
     let mut filter = serde_json::json!({});
     if let Some(team) = opts.team.as_deref() {
         filter["teams"] = serde_json::json!({"some": {"key": {"eq": team.to_uppercase()}}});
@@ -151,7 +151,7 @@ fn run_list(config: &Config, opts: &EpicListOpts) -> Result<(), String> {
 }
 
 fn run_view(config: &Config, opts: &EpicViewOpts) -> Result<(), String> {
-    let client = Client::new(&config.auth.api_key_ref)?;
+    let client = Client::new(&config.auth)?;
     let mut epic = find_epic_by_ref(&client, &opts.epic_id)?;
     attach_epic_issues(&client, &mut epic)?;
 
@@ -165,7 +165,7 @@ fn run_view(config: &Config, opts: &EpicViewOpts) -> Result<(), String> {
 }
 
 fn run_add(config: &Config, opts: &EpicAddOpts) -> Result<(), String> {
-    let client = Client::new(&config.auth.api_key_ref)?;
+    let client = Client::new(&config.auth)?;
     let meta = LinearMeta::fetch(&client)?;
     let epic = find_epic_by_ref(&client, &opts.epic_id)?;
     let epic_id = epic
@@ -271,7 +271,7 @@ fn run_add(config: &Config, opts: &EpicAddOpts) -> Result<(), String> {
 }
 
 fn run_update(config: &Config, opts: &EpicUpdateOpts) -> Result<(), String> {
-    let client = Client::new(&config.auth.api_key_ref)?;
+    let client = Client::new(&config.auth)?;
     let inputs = build_epic_update_inputs(opts)?;
 
     let epic = find_epic_by_ref(&client, &opts.epic_id)?;
@@ -310,7 +310,7 @@ fn run_update(config: &Config, opts: &EpicUpdateOpts) -> Result<(), String> {
 }
 
 fn run_comment(config: &Config, opts: &EpicCommentOpts) -> Result<(), String> {
-    let client = Client::new(&config.auth.api_key_ref)?;
+    let client = Client::new(&config.auth)?;
 
     let is_terminal = std::io::stdin().is_terminal();
     let body = resolve_body_from_source(

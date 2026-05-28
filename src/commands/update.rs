@@ -4,7 +4,7 @@ use crate::config::Config;
 use crate::format;
 
 pub fn run(config: &Config, opts: &UpdateOpts) -> Result<(), String> {
-    let client = Client::new(&config.auth.api_key_ref)?;
+    let client = Client::new(&config.auth)?;
     let meta = LinearMeta::fetch(&client)?;
 
     // Resolver issue por identifier

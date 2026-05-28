@@ -117,21 +117,51 @@ If you installed with the shell/PowerShell installer, lql includes a built-in up
 lql-update
 ```
 
-### Requirements
+### Authentication
 
-A [1Password CLI](https://developer.1password.com/docs/cli/) setup with a Linear API key stored at `op://Private/Linear/api-key` (configurable in `~/.config/lql/config.toml`).
+You need a Linear API key. Generate one at [linear.app/settings/api](https://linear.app/settings/api).
 
-Alternatively, set the `LINEAR_API_KEY` environment variable to bypass 1Password (useful for CI/CD or frequent CLI usage):
+`lql` resolves the key from the first source that's set, in this order:
+
+1. **`LINEAR_API_KEY` env var** — the simplest path; works everywhere including CI.
+2. **`[auth].command`** in `~/.config/lql/config.toml` — any command that prints the key to stdout.
+3. **`[auth].api_key_ref`** — shorthand for `["op", "read", "<ref>"]` (1Password CLI users).
+
+#### Option 1 — env var (recommended)
 
 ```bash
-# One-time setup (Fish shell)
-set -gx LINEAR_API_KEY (op read "op://Private/Linear/api-key")
-
 # Bash/Zsh
-export LINEAR_API_KEY=$(op read "op://Private/Linear/api-key")
+export LINEAR_API_KEY=lin_api_xxxxxxxxxxxx
+
+# Fish
+set -gx LINEAR_API_KEY lin_api_xxxxxxxxxxxx
 ```
 
-This reads the API key once per shell session instead of once per `lql` invocation.
+No config file needed — `lql` falls back to sensible defaults.
+
+#### Option 2 — credential helper
+
+If you'd rather not keep the key in your environment, configure any password manager that can print a secret to stdout:
+
+```toml
+# ~/.config/lql/config.toml
+[auth]
+command = ["pass", "show", "linear/api-key"]
+# command = ["op", "read", "op://<your-vault>/Linear/api-key"]   # 1Password
+# command = ["bw", "get", "password", "Linear"]                   # Bitwarden
+# command = ["security", "find-generic-password", "-s", "linear", "-w"]  # macOS keychain
+```
+
+#### Option 3 — 1Password sugar
+
+For 1Password users, `api_key_ref` is a shorthand:
+
+```toml
+[auth]
+api_key_ref = "op://<your-vault>/Linear/api-key"
+```
+
+Equivalent to `command = ["op", "read", "op://<your-vault>/Linear/api-key"]`.
 
 ## Usage
 
@@ -191,11 +221,12 @@ When a label name exists in multiple teams, `lql` resolves it within the target 
 
 ## Configuration
 
-`~/.config/lql/config.toml`:
+The config file is **optional** — `lql` runs with sensible defaults if `LINEAR_API_KEY` is exported. Use `~/.config/lql/config.toml` to customize defaults, add a credential helper, or map directories to teams:
 
 ```toml
+# [auth] is optional. See "Authentication" above for all three forms.
 [auth]
-api_key_ref = "op://Private/Linear/api-key"
+command = ["op", "read", "op://<your-vault>/Linear/api-key"]
 
 [defaults]
 sort = "priority"

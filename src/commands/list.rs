@@ -10,7 +10,7 @@ pub fn run(config: &Config, opts: &ListOpts) -> Result<(), String> {
     }
 
     let cwd = std::env::current_dir().map_err(|e| format!("Could not get cwd: {e}"))?;
-    let client = Client::new(&config.auth.api_key_ref)?;
+    let client = Client::new(&config.auth)?;
     let meta = LinearMeta::fetch(&client)?;
 
     // Resolver team

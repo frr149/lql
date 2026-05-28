@@ -1,5 +1,20 @@
+# lql configuration. Copy to ~/.config/lql/config.toml and customize.
+# This file is OPTIONAL: if LINEAR_API_KEY is exported, lql works with no config at all.
+
+# -- Authentication -----------------------------------------------------------
+# Pick ONE of the methods below (or set LINEAR_API_KEY and delete this section).
+# Resolution order: LINEAR_API_KEY env var → [auth].command → [auth].api_key_ref.
 [auth]
-api_key_ref = "op://Private/Linear/api-key"
+# Option A: a credential helper command. Works with any password manager that
+# can print a secret to stdout. Examples:
+#   command = ["op", "read", "op://<your-vault>/Linear/api-key"]   # 1Password
+#   command = ["pass", "show", "linear/api-key"]                    # pass
+#   command = ["bw", "get", "password", "Linear"]                   # Bitwarden
+#   command = ["security", "find-generic-password", "-s", "linear", "-w"]  # macOS keychain
+# command = ["pass", "show", "linear/api-key"]
+
+# Option B: 1Password sugar — shorthand for command = ["op", "read", "<ref>"].
+# api_key_ref = "op://<your-vault>/Linear/api-key"
 
 [defaults]
 sort = "priority"

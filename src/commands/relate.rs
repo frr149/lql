@@ -48,7 +48,7 @@ pub fn run(config: &Config, opts: &RelateOpts) -> Result<(), String> {
         return run_unlink(config, &unlink_opts);
     }
 
-    let client = Client::new(&config.auth.api_key_ref)?;
+    let client = Client::new(&config.auth)?;
 
     // Normalizar tipo de relación
     let norm = normalize_relation_type(&opts.relation_type)?;
@@ -174,7 +174,7 @@ fn find_relation_id(
 }
 
 pub fn run_unlink(config: &Config, opts: &UnlinkOpts) -> Result<(), String> {
-    let client = Client::new(&config.auth.api_key_ref)?;
+    let client = Client::new(&config.auth)?;
 
     // Buscar la relación en ambas direcciones
     let relation_id = match find_relation_id(&client, &opts.from, &opts.to) {
