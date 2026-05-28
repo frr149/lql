@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0](https://github.com/frr149/lql/releases/tag/v1.7.0) - 2026-05-28
+
+### Added
+
+- `[auth].command` — generic credential helper. Any command that prints the API key to stdout works (`pass show`, `bw get password`, `security find-generic-password`, `op read`, …). Removes the implicit dependency on 1Password.
+- Zero-config mode: with `LINEAR_API_KEY` exported, `lql` runs with no `~/.config/lql/config.toml` file at all. `[auth]` and the config file are now both optional.
+- `lql doctor` now reports which credential source resolved the key (`LINEAR_API_KEY env var`, `[auth].command`, or `[auth].api_key_ref (1Password)`), and announces when there is no config file instead of pretending one was loaded.
+
+### Changed
+
+- `[auth].api_key_ref` is now a thin sugar for `[auth].command = ["op", "read", "<ref>"]`. Existing configs keep working unchanged.
+- README authentication section restructured: env var documented as the primary path, credential helper as a generic mechanism, 1Password as one option among several.
+
+### Removed
+
+- Hardcoded list of personal team keys leaked through the `Could not detect team` error message.
+- Author-specific 1Password vault path in user-facing examples (README, `config.example.toml`, `docs/PRD.md`, integration test docstrings) replaced with the `op://<your-vault>/...` placeholder.
+- Ferris ASCII jokes in `lql doctor` output.
+- `serial_test` dev-dependency, now unused after the auth tests moved to injected env-var lookups.
+
 ## [1.6.0](https://github.com/frr149/lql/releases/tag/v1.6.0) - 2026-05-26
 
 ### Added
