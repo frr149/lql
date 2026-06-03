@@ -27,6 +27,15 @@ toon-format = { version = "0.4.4", default-features = false }
 [dev-dependencies]
 proptest = "1"
 
+# Faster iteration builds: line-tables-only debuginfo keeps file:line in
+# backtraces while cutting the symbol generation, linking and code-signing cost
+# that dominates `cargo test` on macOS. See docs/adr/0001-fast-iteration-builds.md.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.test]
+debug = "line-tables-only"
+
 # The profile that 'dist' will build with
 [profile.dist]
 inherits = "release"
