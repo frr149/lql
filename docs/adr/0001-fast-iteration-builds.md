@@ -1,0 +1,102 @@
+# 0001 — Fast iteration builds (test compile times)
+
+- Status: Accepted
+- Date: 2026-06-03
+
+## Context
+
+`cargo test` was slow even when only production code changed, not the tests.
+The reasons are inherent to how Rust and macOS build test code:
+
+1. **The crate is the unit of compilation, not the file.** Unit tests live
+   inside the crate (`#[cfg(test)] mod tests`) and link against all of its
+   production code. Changing any source file recompiles the whole crate in its
+   `--cfg test` variant. There is no "recompile only the tests" for unit tests.
+   (Integration tests under `tests/` are separate crates, so each is its own
+   binary; changing one only rebuilds that crate, but changing the library
+   rebuilds the library _and_ every integration crate.)
+
+2. **Tests are separate binaries — several of them.** `cargo test` builds: a
+   test binary for the library, a test binary for the bin, one binary per file
+   in `tests/`, and the doctests. Each links the full dependency graph
+   (clap, reqwest, serde, …).
+
+3. **This crate paid for it twice.** `lib.rs` exposed 6 modules
+   (`auth, cli, client, config, format, queries`) while `main.rs` declared 8
+   with its own `mod` (`+ commands, middleware`). The 6 shared modules — and
+   their tests — were compiled into _both_ the lib test binary and the bin test
+   binary, and the overlapping tests ran twice. Observed before this change:
+   156 tests in the lib binary **plus** 245 in the bin binary, heavily
+   overlapping.
+
+4. **macOS makes linking the bottleneck.** After compilation, the linker stitches
+   objects into each executable. On macOS this is aggravated by: the system
+   linker (`ld64`), ad-hoc **code-signing of every binary** (mandatory on Apple
+   Silicon), and **debug-info / dSYM** handling (`dsymutil`). Multiply by the
+   number of test binaries and the tail of every `cargo test` is link + sign,
+   not type-checking.
+
+## Decision
+
+### Committed to the repo (universal, no external dependency)
+
+1. **Thin binary.** All modules live in the **library** crate. `main.rs` is a
+   shell: `fn main() { std::process::exit(lql::run()) }`. The CLI entry point
+   moved to `lql::run()` in `lib.rs`. Result: unit tests compile and run **once**
+   (lib test binary); the bin test binary is empty. This roughly halves test
+   build + run time and is also cleaner architecture (the binary is just an
+   adapter over the library).
+
+2. **`debug = "line-tables-only"`** for the `dev` and `test` profiles in
+   `Cargo.toml`. Keeps `file:line` in panics/backtraces while cutting the symbol
+   generation, linking and code-signing cost. Full debuginfo (`debug = true`)
+   is not needed for the normal test loop.
+
+### Local-only, not committed (documented here, set up per machine)
+
+These require external tools and would force that dependency onto CI and any
+contributor if committed, so they live in the **user-global** `~/.cargo/config.toml`
+and the developer's shell — never in the repo:
+
+- **sccache** — a compilation cache (think `ccache` for Rust, from Mozilla). It
+  wraps `rustc` (`RUSTC_WRAPPER=sccache`) and returns a cached artifact when the
+  same crate is compiled again — the big win when switching between feature
+  branches and back. Trade-off: it is incompatible with incremental compilation
+  (`CARGO_INCREMENTAL=0`), so it swaps fine-grained incremental rebuilds for
+  cross-invocation caching. Net positive for a branch-heavy / agent-driven
+  workflow.
+
+      # ~/.cargo/config.toml  (machine-global, not in this repo)
+      [build]
+      rustc-wrapper = "sccache"
+
+- **A faster linker.** `lld` (LLVM's linker; `ld64.lld` on macOS, via
+  `brew install llvm`) or `mold` (faster still, but Linux-only — its macOS port
+  was discontinued). Configure per target so CI (Linux) and other contributors
+  are unaffected:
+
+      # ~/.cargo/config.toml
+      [target.aarch64-apple-darwin]
+      rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+### Workflow (no config)
+
+- Iterate with a **subset**: `cargo test --lib <filter>` compiles and runs only
+  the library test binary, skipping integration crates and doctests. Reserve the
+  full `cargo test` for pre-commit verification.
+- Do **not** chain `cargo clippy` and `cargo test` during iteration: they are
+  separate compilations (clippy is check-only, test does codegen), so running
+  both doubles the wait. Run clippy once before committing.
+- Optional: **`cargo nextest`** runs the suite with less per-test overhead and
+  better output. It speeds the _run_ phase, not compilation (which is the
+  bottleneck here), so it is a nice-to-have, not the main lever.
+
+## Consequences
+
+- Test build + run time roughly halved: 243 unit tests now run in a single lib
+  binary instead of 156 + 245 across two.
+- `main.rs` is trivial; the library is the product, the binary an adapter.
+- Backtraces keep `file:line` (line-tables-only) but lose full variable debug
+  info — acceptable for the test loop; `dist`/`release` profiles are unchanged.
+- The aggressive tooling (sccache, lld) stays opt-in and machine-local, so CI
+  and contributors are never forced to install anything new.
