@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.1](https://github.com/frr149/lql/releases/tag/v1.7.1) - 2026-06-03
+
+### Fixed
+
+- Normalization notes (e.g. `--state Todo` → `unstarted`, `--priority urgent` → `1`) are now emitted in machine mode (`--json` or non-TTY stderr), not only in human mode. The agent consuming `lql` — the consumer that most needs to learn the canonical value — was the one being kept in the dark. Notes go to stderr, so `--json`/JSONL on stdout stays uncorrupted. (TOOL-127)
+
+### Changed
+
+- Faster iteration builds: the binary is now a thin shell over the library crate, so the unit tests compile and run once instead of being duplicated into a second test binary; `dev`/`test` profiles use `debug = "line-tables-only"`. See `docs/adr/0001-fast-iteration-builds.md`.
+
+### Internal
+
+- Added a CI workflow that runs `cargo fmt --check`, `cargo clippy --all-targets -D warnings` and `cargo test` on every PR (pinned to the 1.93 MSRV). The `epic` GraphQL complexity / UUID-filter regression (PR #12) is now guarded by network-free tests, and a `#[ignore]` meta-test fails if a critical guard is silently switched off without a justified allowlist. (TOOL-128)
+
 ## [1.7.0](https://github.com/frr149/lql/releases/tag/v1.7.0) - 2026-05-28
 
 ### Added
