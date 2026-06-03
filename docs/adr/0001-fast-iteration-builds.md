@@ -72,9 +72,11 @@ and the developer's shell — never in the repo:
       [build]
       rustc-wrapper = "sccache"
 
-- **A faster linker.** `lld` (LLVM's linker; `ld64.lld` on macOS, via
-  `brew install llvm`) or `mold` (faster still, but Linux-only — its macOS port
-  was discontinued). Configure per target so CI (Linux) and other contributors
+- **A faster linker.** `lld` (LLVM's Mach-O linker `ld64.lld`, via
+  `brew install lld`) or `mold` (faster still, but Linux-only — its macOS port
+  was discontinued). **Measured on this repo and found NOT worth it — see
+  Consequences.** Kept here only as a documented option for a future,
+  link-heavier state. Configure per target so CI (Linux) and other contributors
   are unaffected:
 
       # ~/.cargo/config.toml
@@ -117,6 +119,15 @@ and the developer's shell — never in the repo:
   is the product, the binary a thin adapter, and the unit tests run once.
 - **sccache is the only real lever**: a clean build with a warm cache is ~2.2×
   faster (16.3 s → 7.3 s) — exactly the branch-switch / agent-rebuild case.
+- **A faster linker (lld) does not help here either** — measured, not assumed
+  (`cargo test --no-run`, sccache off): cold 13.9 s with Apple `ld` vs 13.4 s
+  with Homebrew `lld` 22.1.6 (~3%, within noise); incremental relink identical
+  (~1.03 s both). The build is compile-bound (dependency compilation dominates,
+  which the linker never touches) and Apple's current linker is already fast on
+  Apple Silicon, so lld has nothing to bite on. The lld-linked binary was
+  verified to run correctly. `mold` is not an option on macOS at all — it is
+  ELF-only (its macOS port `sold` is discontinued). Verdict: **keep the system
+  linker**; lld/mold are not worth the dependency for this repo.
 - Backtraces keep `file:line` (line-tables-only) but lose full variable debug
   info — acceptable for the test loop; `dist`/`release` profiles are unchanged.
 - The aggressive tooling (sccache, lld) stays opt-in and machine-local, so CI
