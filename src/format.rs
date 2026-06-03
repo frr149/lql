@@ -92,7 +92,7 @@ pub fn format_footer(issues: &[Value], total: Option<u64>, limit: u32) -> String
     let mut parts: Vec<String> = Vec::new();
     // Ordenar por count descendente
     let mut counts: Vec<(String, usize)> = state_counts.into_iter().collect();
-    counts.sort_by(|a, b| b.1.cmp(&a.1));
+    counts.sort_by_key(|b| std::cmp::Reverse(b.1));
     for (state, n) in &counts {
         let state_lower = state.to_lowercase().replace(' ', "-");
         parts.push(format!("{n} {state_lower}"));

@@ -18,7 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      # Pinned to the README's stated MSRV so CI is reproducible and verifies
+      # the minimum supported version actually builds (newer clippy releases add
+      # lints that would otherwise break CI on a silent toolchain bump).
+      - uses: dtolnay/rust-toolchain@1.93.0
         with:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
