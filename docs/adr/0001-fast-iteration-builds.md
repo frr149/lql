@@ -43,9 +43,11 @@ The reasons are inherent to how Rust and macOS build test code:
 1. **Thin binary.** All modules live in the **library** crate. `main.rs` is a
    shell: `fn main() { std::process::exit(lql::run()) }`. The CLI entry point
    moved to `lql::run()` in `lib.rs`. Result: unit tests compile and run **once**
-   (lib test binary); the bin test binary is empty. This roughly halves test
-   build + run time and is also cleaner architecture (the binary is just an
-   adapter over the library).
+   (lib test binary); the bin test binary is empty. This removes the duplicate
+   compilation/execution and is cleaner architecture (the binary is a thin
+   adapter over the library). NOTE: this was expected to roughly halve build
+   time; measurement (see Consequences) showed the wall-clock effect is
+   negligible — keep this change for the architecture, not the speed.
 
 2. **`debug = "line-tables-only"`** for the `dev` and `test` profiles in
    `Cargo.toml`. Keeps `file:line` in panics/backtraces while cutting the symbol
@@ -93,9 +95,28 @@ and the developer's shell — never in the repo:
 
 ## Consequences
 
-- Test build + run time roughly halved: 243 unit tests now run in a single lib
-  binary instead of 156 + 245 across two.
-- `main.rs` is trivial; the library is the product, the binary an adapter.
+### Measured (2026-06-03, Apple Silicon, sccache off unless noted)
+
+| Scenario                                        | Old (v1.7.0) | New (v1.7.1) |
+| ----------------------------------------------- | -----------: | -----------: |
+| Incremental rebuild + test (touch one src file) | 2.86 s       | 2.99 s       |
+| Cold `cargo test` (clean target)                | 16.66 s      | 16.30 s      |
+| Cold `cargo test`, sccache cache warm           | —            | 7.32 s       |
+
+**Honest result, against the original expectation:**
+
+- The thin-binary refactor and `line-tables-only` change have a **negligible
+  wall-clock effect** (~2% cold, none incremental). Cold time is dominated by
+  compiling the dependency graph (clap, reqwest, serde, …), identical either
+  way; incremental rebuilds are dominated by fixed link/cargo overhead. The
+  earlier "halves build time" framing conflated the _test-count duplication_
+  (243 in one binary vs 156 + 245 across two — real) with _wall-clock build
+  time_ (which barely moves). Claiming a speedup without measuring it was the
+  mistake.
+- The thin-binary refactor is kept for **architecture, not speed**: the library
+  is the product, the binary a thin adapter, and the unit tests run once.
+- **sccache is the only real lever**: a clean build with a warm cache is ~2.2×
+  faster (16.3 s → 7.3 s) — exactly the branch-switch / agent-rebuild case.
 - Backtraces keep `file:line` (line-tables-only) but lose full variable debug
   info — acceptable for the test loop; `dist`/`release` profiles are unchanged.
 - The aggressive tooling (sccache, lld) stays opt-in and machine-local, so CI
