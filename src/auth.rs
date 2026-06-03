@@ -122,7 +122,9 @@ fn shell_quote(parts: &[String]) -> String {
     parts
         .iter()
         .map(|p| {
-            if p.chars().any(|c| c.is_whitespace() || c == '"' || c == '\'') {
+            if p.chars()
+                .any(|c| c.is_whitespace() || c == '"' || c == '\'')
+            {
                 format!("\"{}\"", p.replace('"', "\\\""))
             } else {
                 p.clone()
@@ -193,9 +195,7 @@ mod tests {
 
         fn always_err(kind: std::io::ErrorKind) -> Self {
             Self {
-                result: RefCell::new(Box::new(move |_, _| {
-                    Err(std::io::Error::new(kind, "mock"))
-                })),
+                result: RefCell::new(Box::new(move |_, _| Err(std::io::Error::new(kind, "mock")))),
                 calls: RefCell::new(Vec::new()),
             }
         }
@@ -232,8 +232,8 @@ mod tests {
             command: Some(vec!["op".into(), "read".into(), "op://x/y/z".into()]),
             api_key_ref: None,
         };
-        let key = resolve_api_key_with(&runner, &auth, env_with("LINEAR_API_KEY", "lin_env"))
-            .unwrap();
+        let key =
+            resolve_api_key_with(&runner, &auth, env_with("LINEAR_API_KEY", "lin_env")).unwrap();
         assert_eq!(key, "lin_env");
         assert!(runner.calls.borrow().is_empty());
     }
@@ -245,8 +245,8 @@ mod tests {
             api_key_ref: Some("op://x/y/z".into()),
             command: None,
         };
-        let key = resolve_api_key_with(&runner, &auth, env_with("LINEAR_API_KEY", "lin_env"))
-            .unwrap();
+        let key =
+            resolve_api_key_with(&runner, &auth, env_with("LINEAR_API_KEY", "lin_env")).unwrap();
         assert_eq!(key, "lin_env");
     }
 
@@ -258,8 +258,7 @@ mod tests {
             api_key_ref: Some("op://x/y/z".into()),
             command: None,
         };
-        let key = resolve_api_key_with(&runner, &auth, env_with("LINEAR_API_KEY", "   "))
-            .unwrap();
+        let key = resolve_api_key_with(&runner, &auth, env_with("LINEAR_API_KEY", "   ")).unwrap();
         assert_eq!(key, "lin_from_helper");
     }
 
@@ -312,7 +311,10 @@ mod tests {
             api_key_ref: None,
         };
         let err = resolve_api_key_with(&runner, &auth, no_env).unwrap_err();
-        assert!(err.contains("Could not run credential helper 'nope-not-real'"), "{err}");
+        assert!(
+            err.contains("Could not run credential helper 'nope-not-real'"),
+            "{err}"
+        );
         assert!(err.contains("nope-not-real arg"), "{err}");
     }
 
@@ -394,10 +396,7 @@ mod tests {
             describe_source_with(&env_set, env_with("LINEAR_API_KEY", "k")),
             "LINEAR_API_KEY env var"
         );
-        assert_eq!(
-            describe_source_with(&env_set, no_env),
-            "[auth].command"
-        );
+        assert_eq!(describe_source_with(&env_set, no_env), "[auth].command");
         let only_ref = AuthConfig {
             command: None,
             api_key_ref: Some("op://x/y/z".into()),

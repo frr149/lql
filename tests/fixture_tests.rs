@@ -4,14 +4,10 @@
 use serde_json::Value;
 
 fn load_fixture(name: &str) -> Value {
-    let path = format!(
-        "{}/tests/fixtures/{name}",
-        env!("CARGO_MANIFEST_DIR")
-    );
+    let path = format!("{}/tests/fixtures/{name}", env!("CARGO_MANIFEST_DIR"));
     let content = std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("Could not read fixture {path}: {e}"));
-    serde_json::from_str(&content)
-        .unwrap_or_else(|e| panic!("Invalid JSON in fixture {path}: {e}"))
+    serde_json::from_str(&content).unwrap_or_else(|e| panic!("Invalid JSON in fixture {path}: {e}"))
 }
 
 // --- Meta parsing ---
@@ -21,12 +17,14 @@ fn test_meta_has_teams() {
     let fixture = load_fixture("meta.json");
     let data = &fixture["data"];
     let teams = data["teams"]["nodes"].as_array().unwrap();
-    assert!(teams.len() >= 5, "Expected at least 5 teams, got {}", teams.len());
+    assert!(
+        teams.len() >= 5,
+        "Expected at least 5 teams, got {}",
+        teams.len()
+    );
 
     // Verificar que los teams del context-map existen
-    let team_keys: Vec<&str> = teams.iter()
-        .filter_map(|t| t["key"].as_str())
-        .collect();
+    let team_keys: Vec<&str> = teams.iter().filter_map(|t| t["key"].as_str()).collect();
     for expected in &["PROD", "CONT", "PRIV", "TOOL", "KC"] {
         assert!(
             team_keys.contains(expected),
@@ -43,24 +41,31 @@ fn test_meta_teams_have_states() {
     for team in teams {
         let key = team["key"].as_str().unwrap();
         let states = team["states"]["nodes"].as_array().unwrap();
-        assert!(
-            !states.is_empty(),
-            "Team {key} has no states"
-        );
+        assert!(!states.is_empty(), "Team {key} has no states");
 
         // Cada state debe tener id, name, type
         for state in states {
             assert!(state["id"].is_string(), "State missing id in team {key}");
-            assert!(state["name"].is_string(), "State missing name in team {key}");
-            assert!(state["type"].is_string(), "State missing type in team {key}");
+            assert!(
+                state["name"].is_string(),
+                "State missing name in team {key}"
+            );
+            assert!(
+                state["type"].is_string(),
+                "State missing type in team {key}"
+            );
         }
 
         // Verificar que existe al menos backlog y completed
-        let types: Vec<&str> = states.iter()
-            .filter_map(|s| s["type"].as_str())
-            .collect();
-        assert!(types.contains(&"backlog"), "Team {key} missing backlog state");
-        assert!(types.contains(&"completed"), "Team {key} missing completed state");
+        let types: Vec<&str> = states.iter().filter_map(|s| s["type"].as_str()).collect();
+        assert!(
+            types.contains(&"backlog"),
+            "Team {key} missing backlog state"
+        );
+        assert!(
+            types.contains(&"completed"),
+            "Team {key} missing completed state"
+        );
     }
 }
 
@@ -71,9 +76,7 @@ fn test_meta_has_labels() {
     assert!(labels.len() >= 10, "Expected at least 10 labels");
 
     // Verificar label lql existe
-    let label_names: Vec<&str> = labels.iter()
-        .filter_map(|l| l["name"].as_str())
-        .collect();
+    let label_names: Vec<&str> = labels.iter().filter_map(|l| l["name"].as_str()).collect();
     assert!(
         label_names.contains(&"lql"),
         "Label 'lql' not found. Available: {label_names:?}"
@@ -86,12 +89,12 @@ fn test_meta_teams_have_projects() {
     let teams = fixture["data"]["teams"]["nodes"].as_array().unwrap();
 
     // Al menos PROD debe tener projects
-    let prod = teams.iter().find(|t| t["key"].as_str() == Some("PROD")).unwrap();
+    let prod = teams
+        .iter()
+        .find(|t| t["key"].as_str() == Some("PROD"))
+        .unwrap();
     let projects = prod["projects"]["nodes"].as_array().unwrap();
-    assert!(
-        !projects.is_empty(),
-        "Team PROD should have projects"
-    );
+    assert!(!projects.is_empty(), "Team PROD should have projects");
 
     // Cada project tiene id y name
     for p in projects {
@@ -144,13 +147,22 @@ fn test_list_compact_format_with_real_data() {
 
         // ERR-55: formato correcto
         let id = issue["identifier"].as_str().unwrap();
-        assert!(formatted.starts_with(id), "Should start with ID: {formatted}");
+        assert!(
+            formatted.starts_with(id),
+            "Should start with ID: {formatted}"
+        );
         assert!(formatted.contains('['), "Should have [State]: {formatted}");
         assert!(formatted.contains(']'), "Should have [State]: {formatted}");
-        assert!(formatted.contains('\u{2014}'), "Should have em-dash: {formatted}");
+        assert!(
+            formatted.contains('\u{2014}'),
+            "Should have em-dash: {formatted}"
+        );
 
         // ERR-60: sin ANSI
-        assert!(!formatted.contains("\x1b["), "Should not contain ANSI: {formatted}");
+        assert!(
+            !formatted.contains("\x1b["),
+            "Should not contain ANSI: {formatted}"
+        );
     }
 }
 
@@ -185,8 +197,14 @@ fn test_list_footer_with_real_data() {
     let footer = lql::format::format_footer(&owned, None, 5);
 
     // ERR-56: footer con conteo
-    assert!(footer.contains("5 issues"), "Footer should show count: {footer}");
-    assert!(footer.starts_with('\u{2500}'), "Footer should start with ──: {footer}");
+    assert!(
+        footer.contains("5 issues"),
+        "Footer should show count: {footer}"
+    );
+    assert!(
+        footer.starts_with('\u{2500}'),
+        "Footer should start with ──: {footer}"
+    );
 }
 
 // --- Issue by identifier ---
@@ -218,7 +236,10 @@ fn test_view_format_with_real_data() {
     assert!(formatted.contains("Team: TOOL"), "Should contain team");
 
     // Debe tener separadores de descripción
-    assert!(formatted.contains('\u{2500}'), "Should have description separators");
+    assert!(
+        formatted.contains('\u{2500}'),
+        "Should have description separators"
+    );
 }
 
 // --- Search ---
@@ -255,7 +276,14 @@ fn test_issue_state_types_are_valid() {
     let fixture = load_fixture("meta.json");
     let teams = fixture["data"]["teams"]["nodes"].as_array().unwrap();
 
-    let valid_types = ["backlog", "unstarted", "started", "completed", "canceled", "triage"];
+    let valid_types = [
+        "backlog",
+        "unstarted",
+        "started",
+        "completed",
+        "canceled",
+        "triage",
+    ];
 
     for team in teams {
         let key = team["key"].as_str().unwrap();
@@ -277,7 +305,10 @@ fn test_issue_relation_types_match_schema() {
     let valid = ["blocks", "duplicate", "related", "similar"];
 
     // "blocked-by" NO existe en la API — se normaliza client-side a "blocks" con IDs invertidos
-    assert!(!valid.contains(&"blocked-by"), "blocked-by is client-side only");
+    assert!(
+        !valid.contains(&"blocked-by"),
+        "blocked-by is client-side only"
+    );
 }
 
 #[test]
@@ -285,5 +316,8 @@ fn test_pagination_order_by_values() {
     // PaginationOrderBy: solo createdAt, updatedAt
     // "priority" NO es válido — se ordena client-side
     let valid = ["createdAt", "updatedAt"];
-    assert!(!valid.contains(&"priority"), "priority is client-side sort only");
+    assert!(
+        !valid.contains(&"priority"),
+        "priority is client-side sort only"
+    );
 }

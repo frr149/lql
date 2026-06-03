@@ -9,7 +9,10 @@ pub fn run(config: &Config) -> Result<(), String> {
     if cfg_path.exists() {
         println!("✓ Config loaded from {}", cfg_path.display());
     } else {
-        println!("ℹ No config file at {} — using defaults", cfg_path.display());
+        println!(
+            "ℹ No config file at {} — using defaults",
+            cfg_path.display()
+        );
     }
 
     // 2. Auth
@@ -76,7 +79,10 @@ pub fn run(config: &Config) -> Result<(), String> {
             // Verificar teams del context-map existen
             for (path, entry) in &config.context_map {
                 if meta.find_team(&entry.team).is_err() {
-                    println!("✗ Context-map {path}: team \"{}\" not found in Linear", entry.team);
+                    println!(
+                        "✗ Context-map {path}: team \"{}\" not found in Linear",
+                        entry.team
+                    );
                     all_ok = false;
                 }
                 if let Some(ref label) = entry.label

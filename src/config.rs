@@ -159,8 +159,9 @@ pub fn config_path() -> PathBuf {
 pub fn load() -> Result<Config, String> {
     let path = config_path();
     match std::fs::read_to_string(&path) {
-        Ok(content) => toml::from_str(&content)
-            .map_err(|e| format!("Invalid config {}: {e}", path.display())),
+        Ok(content) => {
+            toml::from_str(&content).map_err(|e| format!("Invalid config {}: {e}", path.display()))
+        }
         // Missing config is OK: defaults work as long as LINEAR_API_KEY is set.
         // Surface I/O errors other than NotFound so permission/format issues stay visible.
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Config::default()),

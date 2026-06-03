@@ -92,7 +92,10 @@ fn integration_concurrent_list() {
 fn integration_filter_flag_rejected() {
     let (code, _stdout, stderr) = run_lql(&["list", "--filter", "backlog"]);
     assert_ne!(code, 0);
-    assert!(stderr.contains("--filter does not exist"), "stderr: {stderr}");
+    assert!(
+        stderr.contains("--filter does not exist"),
+        "stderr: {stderr}"
+    );
 }
 
 #[test]
