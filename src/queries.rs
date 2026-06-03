@@ -517,3 +517,76 @@ query ProjectByRef($filter: ProjectFilter) {
   }
 }
 "#;
+
+#[cfg(test)]
+mod budget_tests {
+    //! Network-free guards for the PR #12 epic regression (TOOL-128).
+    //!
+    //! Linear rejects any GraphQL query above a ~10,000-point complexity budget,
+    //! and nested connection page sizes multiply. `epic` broke because its
+    //! queries nested connections (notably an `issues` connection under every
+    //! project) past that budget. These tests keep the epic queries inside it
+    //! without touching the network — so the regression is guarded in CI, not
+    //! only by the live `#[ignore]`d smoke tests.
+
+    const LINEAR_COMPLEXITY_BUDGET: u64 = 10_000;
+
+    /// Conservative proxy for query complexity: the product of every literal
+    /// `first: N` page size. It over-counts sibling connections (treating them
+    /// as if they multiplied), so it is stricter than Linear's real cost — the
+    /// safe direction for a guard. `first: $var` (non-literal) is ignored.
+    fn page_size_product(query: &str) -> u64 {
+        let mut product: u64 = 1;
+        let mut rest = query;
+        while let Some(pos) = rest.find("first:") {
+            rest = &rest[pos + "first:".len()..];
+            let digits: String = rest
+                .trim_start()
+                .chars()
+                .take_while(char::is_ascii_digit)
+                .collect();
+            if let Ok(n) = digits.parse::<u64>() {
+                product = product.saturating_mul(n.max(1));
+            }
+        }
+        product
+    }
+
+    #[test]
+    fn initiatives_query_within_budget() {
+        let p = page_size_product(super::INITIATIVES_QUERY);
+        assert!(
+            p < LINEAR_COMPLEXITY_BUDGET,
+            "INITIATIVES_QUERY page-size product {p} exceeds Linear's budget"
+        );
+    }
+
+    #[test]
+    fn initiative_by_ref_query_within_budget() {
+        let p = page_size_product(super::INITIATIVE_BY_REF_QUERY);
+        assert!(
+            p < LINEAR_COMPLEXITY_BUDGET,
+            "INITIATIVE_BY_REF_QUERY page-size product {p} exceeds Linear's budget"
+        );
+    }
+
+    /// The PR #12 fix pulled the `issues` connection OUT of the by-ref query
+    /// (it was nested under each project, multiplying page sizes). `epic view`
+    /// now fetches issues with a separate flat query, so the by-ref query must
+    /// never reintroduce a nested `issues` connection.
+    #[test]
+    fn initiative_by_ref_query_does_not_nest_issues() {
+        assert!(
+            !super::INITIATIVE_BY_REF_QUERY.contains("issues"),
+            "INITIATIVE_BY_REF_QUERY must not nest an `issues` connection (PR #12 regression)"
+        );
+    }
+
+    /// Anti-guard / positive control (P06): the proxy must flag a real
+    /// budget-buster, or it proves nothing.
+    #[test]
+    fn page_size_product_detects_budget_buster() {
+        let bad = "projects(first: 200) { nodes { issues(first: 200) { nodes { id } } } }";
+        assert!(page_size_product(bad) >= LINEAR_COMPLEXITY_BUDGET);
+    }
+}

@@ -576,7 +576,10 @@ impl CreateOpts {
         match (&self.title, &self.title_flag) {
             (Some(t), _) => Ok(t),
             (None, Some(t)) => Ok(t),
-            (None, None) => Err("Missing title. Use: lql create \"Title\" or lql create --title \"Title\"".to_string()),
+            (None, None) => Err(
+                "Missing title. Use: lql create \"Title\" or lql create --title \"Title\""
+                    .to_string(),
+            ),
         }
     }
 }
@@ -1215,12 +1218,19 @@ mod tests {
     #[test]
     fn test_create_title_as_flag() {
         let cli = Cli::try_parse_from([
-            "lql", "create", "--title",
+            "lql",
+            "create",
+            "--title",
             "Epic: Pre-locale — preparar ETL para multi-locale sin romper ES",
-            "--team", "PROD",
-        ]).unwrap();
+            "--team",
+            "PROD",
+        ])
+        .unwrap();
         if let Command::Create(opts) = cli.command {
-            assert_eq!(opts.resolved_title().unwrap(), "Epic: Pre-locale — preparar ETL para multi-locale sin romper ES");
+            assert_eq!(
+                opts.resolved_title().unwrap(),
+                "Epic: Pre-locale — preparar ETL para multi-locale sin romper ES"
+            );
             assert_eq!(opts.team.as_deref(), Some("PROD"));
         } else {
             panic!("Expected Create command");
@@ -1232,11 +1242,19 @@ mod tests {
     #[test]
     fn test_create_title_flag_before_team() {
         let cli = Cli::try_parse_from([
-            "lql", "create", "--team", "QIN",
-            "--title", "Migrar names.db y artefactos v1 a data/",
-        ]).unwrap();
+            "lql",
+            "create",
+            "--team",
+            "QIN",
+            "--title",
+            "Migrar names.db y artefactos v1 a data/",
+        ])
+        .unwrap();
         if let Command::Create(opts) = cli.command {
-            assert_eq!(opts.resolved_title().unwrap(), "Migrar names.db y artefactos v1 a data/");
+            assert_eq!(
+                opts.resolved_title().unwrap(),
+                "Migrar names.db y artefactos v1 a data/"
+            );
         } else {
             panic!("Expected Create command");
         }
@@ -1320,10 +1338,18 @@ mod tests {
     #[test]
     fn test_comment_body_as_flag() {
         let cli = Cli::try_parse_from([
-            "lql", "comment", "PROD-926", "--body", "Investigado, el problema es X",
-        ]).unwrap();
+            "lql",
+            "comment",
+            "PROD-926",
+            "--body",
+            "Investigado, el problema es X",
+        ])
+        .unwrap();
         if let Command::Comment(opts) = cli.command {
-            assert_eq!(opts.body_flag.as_deref(), Some("Investigado, el problema es X"));
+            assert_eq!(
+                opts.body_flag.as_deref(),
+                Some("Investigado, el problema es X")
+            );
             assert!(opts.body.is_none());
         } else {
             panic!("Expected Comment command");
@@ -1338,8 +1364,14 @@ mod tests {
     #[test]
     fn test_epic_update_accepts_description_file() {
         let cli = Cli::try_parse_from([
-            "lql", "epic", "update", "cb19ff35fa52", "--description-file", "plan.md",
-        ]).unwrap();
+            "lql",
+            "epic",
+            "update",
+            "cb19ff35fa52",
+            "--description-file",
+            "plan.md",
+        ])
+        .unwrap();
         if let Command::Epic(opts) = cli.command {
             if let EpicAction::Update(update) = opts.action {
                 assert_eq!(update.epic_id, "cb19ff35fa52");
@@ -1355,11 +1387,18 @@ mod tests {
     #[test]
     fn test_epic_update_accepts_target_date() {
         let cli = Cli::try_parse_from([
-            "lql", "epic", "update", "cb19ff35fa52",
-            "--title", "New title",
-            "--summary", "Short",
-            "--target-date", "2026-06-15",
-        ]).unwrap();
+            "lql",
+            "epic",
+            "update",
+            "cb19ff35fa52",
+            "--title",
+            "New title",
+            "--summary",
+            "Short",
+            "--target-date",
+            "2026-06-15",
+        ])
+        .unwrap();
         if let Command::Epic(opts) = cli.command {
             if let EpicAction::Update(update) = opts.action {
                 assert_eq!(update.title.as_deref(), Some("New title"));
@@ -1375,9 +1414,9 @@ mod tests {
 
     #[test]
     fn test_epic_comment_inline_body() {
-        let cli = Cli::try_parse_from([
-            "lql", "epic", "comment", "cb19ff35fa52", "Progress update",
-        ]).unwrap();
+        let cli =
+            Cli::try_parse_from(["lql", "epic", "comment", "cb19ff35fa52", "Progress update"])
+                .unwrap();
         if let Command::Epic(opts) = cli.command {
             if let EpicAction::Comment(comment) = opts.action {
                 assert_eq!(comment.epic_id, "cb19ff35fa52");
@@ -1394,8 +1433,14 @@ mod tests {
     #[test]
     fn test_epic_comment_from_file() {
         let cli = Cli::try_parse_from([
-            "lql", "epic", "comment", "cb19ff35fa52", "--file", "/tmp/c.md",
-        ]).unwrap();
+            "lql",
+            "epic",
+            "comment",
+            "cb19ff35fa52",
+            "--file",
+            "/tmp/c.md",
+        ])
+        .unwrap();
         if let Command::Epic(opts) = cli.command {
             if let EpicAction::Comment(comment) = opts.action {
                 assert!(comment.body.is_none());
@@ -1429,7 +1474,10 @@ mod tests {
         for alias in ["show", "get"] {
             let cli = Cli::try_parse_from(["lql", "project", alias, "some-slug"]).unwrap();
             if let Command::Project(opts) = cli.command {
-                assert!(matches!(opts.action, ProjectAction::View(_)), "alias {alias}");
+                assert!(
+                    matches!(opts.action, ProjectAction::View(_)),
+                    "alias {alias}"
+                );
             } else {
                 panic!("Expected Project command for alias {alias}");
             }
@@ -1439,10 +1487,16 @@ mod tests {
     #[test]
     fn test_project_update_parses() {
         let cli = Cli::try_parse_from([
-            "lql", "project", "update", "some-slug",
-            "--description-file", "plan.md",
-            "--target-date", "2026-06-15",
-        ]).unwrap();
+            "lql",
+            "project",
+            "update",
+            "some-slug",
+            "--description-file",
+            "plan.md",
+            "--target-date",
+            "2026-06-15",
+        ])
+        .unwrap();
         if let Command::Project(opts) = cli.command {
             if let ProjectAction::Update(update) = opts.action {
                 assert_eq!(update.project_ref, "some-slug");
@@ -1458,9 +1512,8 @@ mod tests {
 
     #[test]
     fn test_project_comment_parses() {
-        let cli = Cli::try_parse_from([
-            "lql", "project", "comment", "some-slug", "Progress note",
-        ]).unwrap();
+        let cli = Cli::try_parse_from(["lql", "project", "comment", "some-slug", "Progress note"])
+            .unwrap();
         if let Command::Project(opts) = cli.command {
             if let ProjectAction::Comment(comment) = opts.action {
                 assert_eq!(comment.project_ref, "some-slug");

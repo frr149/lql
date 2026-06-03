@@ -59,7 +59,10 @@ fn create(client: &dyn GraphQLClient, opts: &LabelsCreateOpts) -> Result<(), Str
         input["teamId"] = serde_json::json!(team.id);
     }
 
-    let data = client.query(crate::queries::LABEL_CREATE_MUTATION, serde_json::json!({"input": input}))?;
+    let data = client.query(
+        crate::queries::LABEL_CREATE_MUTATION,
+        serde_json::json!({"input": input}),
+    )?;
 
     let success = data
         .get("issueLabelCreate")
@@ -103,7 +106,9 @@ fn delete(client: &dyn GraphQLClient, opts: &LabelsDeleteOpts) -> Result<(), Str
         .unwrap_or(false);
 
     if !success {
-        return Err(format!("Linear API rejected deletion of label \"{label_name}\"."));
+        return Err(format!(
+            "Linear API rejected deletion of label \"{label_name}\"."
+        ));
     }
 
     eprintln!("✓ Label \"{label_name}\" deleted.");
@@ -252,7 +257,10 @@ mod tests {
         };
 
         let result = create(&client, &opts);
-        assert!(result.is_ok(), "Create with team should succeed: {result:?}");
+        assert!(
+            result.is_ok(),
+            "Create with team should succeed: {result:?}"
+        );
     }
 
     #[test]

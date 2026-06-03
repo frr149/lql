@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: build • test • clippy • fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Test
+        run: cargo test --locked
+      # Live integration tests (#[ignore]) need a real Linear API key + network
+      # and are intentionally NOT run here. The PR #12 epic regression is guarded
+      # network-free by queries::budget_tests and epic::build_epic_ref_filter
+      # tests, and tests/meta_tests.rs fails if a critical guard is silently
+      # #[ignore]d without a justified allowlist entry.
