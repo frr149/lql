@@ -31,9 +31,9 @@ pub fn run(config: &Config, opts: &RawOpts) -> Result<(), String> {
     // --var key=value (se mergean sobre vars_file)
     if let Some(ref vars) = opts.vars {
         for var in vars {
-            let (key, value) = var
-                .split_once('=')
-                .ok_or_else(|| format!("Invalid variable format \"{var}\". Use: --var key=value"))?;
+            let (key, value) = var.split_once('=').ok_or_else(|| {
+                format!("Invalid variable format \"{var}\". Use: --var key=value")
+            })?;
             variables[key] = serde_json::json!(value);
         }
     }

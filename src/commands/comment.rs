@@ -84,8 +84,7 @@ pub fn resolve_body_from_source(
     } else if let Some(text) = source.body_flag {
         text.to_string()
     } else if let Some(path) = source.file {
-        std::fs::read_to_string(path)
-            .map_err(|e| format!("Could not read file {path}: {e}"))?
+        std::fs::read_to_string(path).map_err(|e| format!("Could not read file {path}: {e}"))?
     } else if !is_terminal {
         let mut buf = String::new();
         reader

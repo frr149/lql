@@ -40,7 +40,10 @@ fn run_create(config: &Config, opts: &EpicCreateOpts) -> Result<(), String> {
     let epic = create_epic(&client, &opts.title, body.as_deref(), &team_ids)?;
 
     if opts.json {
-        println!("{}", serde_json::to_string_pretty(&epic).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&epic).unwrap_or_default()
+        );
     } else {
         println!("{}", format::format_epic_created(&epic));
     }
@@ -98,7 +101,9 @@ fn create_epic(
             // The initiative exists but has no usable backing project. Roll it
             // back so `epic create` is all-or-nothing.
             return Err(match delete_initiative(client, &epic_id) {
-                Ok(()) => format!("Epic backing project failed: {err}. Rolled back epic {epic_slug}."),
+                Ok(()) => {
+                    format!("Epic backing project failed: {err}. Rolled back epic {epic_slug}.")
+                }
                 Err(rollback_err) => format!(
                     "Epic backing project failed: {err}. \
                      WARNING: could not roll back epic {epic_slug}: {rollback_err}"
@@ -120,7 +125,11 @@ fn run_list(config: &Config, opts: &EpicListOpts) -> Result<(), String> {
         filter["teams"] = serde_json::json!({"some": {"key": {"eq": team.to_uppercase()}}});
     }
 
-    let limit = if opts.all { 250 } else { opts.limit.unwrap_or(50) };
+    let limit = if opts.all {
+        250
+    } else {
+        opts.limit.unwrap_or(50)
+    };
     let data = client.query(
         crate::queries::INITIATIVES_QUERY,
         serde_json::json!({
@@ -156,7 +165,10 @@ fn run_view(config: &Config, opts: &EpicViewOpts) -> Result<(), String> {
     attach_epic_issues(&client, &mut epic)?;
 
     if opts.json {
-        println!("{}", serde_json::to_string_pretty(&epic).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&epic).unwrap_or_default()
+        );
     } else {
         println!("{}", format::format_epic_view(&epic));
     }
@@ -204,7 +216,7 @@ fn run_add(config: &Config, opts: &EpicAddOpts) -> Result<(), String> {
         count => {
             return Err(format!(
                 "Epic \"{epic_slug}\" has {count} projects. `lql epic add` only works when the epic has a single backing project."
-            ))
+            ));
         }
     };
 
@@ -251,7 +263,9 @@ fn run_add(config: &Config, opts: &EpicAddOpts) -> Result<(), String> {
             .and_then(|s| s.as_bool())
             .unwrap_or(false);
         if !success {
-            return Err(format!("Failed to assign {identifier} to epic {epic_slug}."));
+            return Err(format!(
+                "Failed to assign {identifier} to epic {epic_slug}."
+            ));
         }
         updated.push(identifier.to_string());
     }
@@ -301,9 +315,15 @@ fn run_update(config: &Config, opts: &EpicUpdateOpts) -> Result<(), String> {
             "project": updated_project,
             "fields": inputs.fields,
         });
-        println!("{}", serde_json::to_string_pretty(&payload).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&payload).unwrap_or_default()
+        );
     } else {
-        println!("{}", format::format_epic_updated(&epic_slug, &inputs.fields));
+        println!(
+            "{}",
+            format::format_epic_updated(&epic_slug, &inputs.fields)
+        );
     }
 
     Ok(())
@@ -383,7 +403,8 @@ pub(crate) fn build_epic_update_inputs(opts: &EpicUpdateOpts) -> Result<EpicUpda
         return Err("--description and --description-file are mutually exclusive".to_string());
     }
 
-    let body = get_description_from_args(opts.description.as_ref(), opts.description_file.as_ref())?;
+    let body =
+        get_description_from_args(opts.description.as_ref(), opts.description_file.as_ref())?;
 
     let mut initiative = serde_json::Map::new();
     let mut project = serde_json::Map::new();
@@ -400,8 +421,14 @@ pub(crate) fn build_epic_update_inputs(opts: &EpicUpdateOpts) -> Result<EpicUpda
         fields.push("content".to_string());
     }
     if let Some(summary) = opts.summary.as_deref() {
-        initiative.insert("description".to_string(), Value::String(summary.to_string()));
-        project.insert("description".to_string(), Value::String(summary.to_string()));
+        initiative.insert(
+            "description".to_string(),
+            Value::String(summary.to_string()),
+        );
+        project.insert(
+            "description".to_string(),
+            Value::String(summary.to_string()),
+        );
         fields.push("summary".to_string());
     }
     if let Some(target) = opts.target_date.as_deref() {
@@ -532,13 +559,12 @@ fn resolve_single_backing_project_id(
 /// clear path forward without `lql` silently creating projects on their
 /// behalf.
 fn require_backing_project_id(epic: &Value, epic_slug: &str) -> Result<String, String> {
-    resolve_single_backing_project_id(epic, epic_slug)?
-        .ok_or_else(|| {
-            format!(
-                "Epic \"{epic_slug}\" has no backing project. \
+    resolve_single_backing_project_id(epic, epic_slug)?.ok_or_else(|| {
+        format!(
+            "Epic \"{epic_slug}\" has no backing project. \
                  Run `lql epic add {epic_slug} <ISSUE-ID>` to create one, or use `lql epic create`."
-            )
-        })
+        )
+    })
 }
 
 /// Shallow check: TimelessDate is `YYYY-MM-DD`. Linear will reject impossible
@@ -553,23 +579,29 @@ pub(crate) fn validate_target_date(date: &str) -> Result<(), String> {
             .enumerate()
             .all(|(i, &c)| matches!(i, 4 | 7) || c.is_ascii_digit());
     if !well_shaped {
-        return Err(format!(
-            "--target-date must be YYYY-MM-DD (got \"{date}\")"
-        ));
+        return Err(format!("--target-date must be YYYY-MM-DD (got \"{date}\")"));
     }
     Ok(())
 }
 
-fn find_epic_by_ref(client: &dyn GraphQLClient, epic_ref: &str) -> Result<Value, String> {
+/// Builds the `InitiativeFilter` OR-clause for an epic reference.
+///
+/// `slugId` accepts any string, but `id` is validated as a UUID — passing a
+/// 12-char slug to `id.eq` is rejected by Linear with an "Argument Validation
+/// Error". So the `id` branch is only added when the ref actually looks like a
+/// UUID. Extracted as a pure function so this PR #12 regression is guarded by a
+/// network-free unit test (TOOL-128), not only by the live `epic` smoke test.
+fn build_epic_ref_filter(epic_ref: &str) -> Value {
     let normalized = normalize_epic_ref(epic_ref);
-    // `slugId` accepts any string, but `id` is validated as a UUID — passing a
-    // 12-char slug to `id.eq` is rejected with an "Argument Validation Error".
-    // Only offer the `id` branch when the ref actually looks like a UUID.
     let mut or_conditions = vec![serde_json::json!({"slugId": {"eq": normalized}})];
     if looks_like_uuid(&normalized) {
         or_conditions.push(serde_json::json!({"id": {"eq": normalized}}));
     }
-    let filter = serde_json::json!({ "or": or_conditions });
+    serde_json::json!({ "or": or_conditions })
+}
+
+fn find_epic_by_ref(client: &dyn GraphQLClient, epic_ref: &str) -> Result<Value, String> {
+    let filter = build_epic_ref_filter(epic_ref);
 
     let data = client.query(
         crate::queries::INITIATIVE_BY_REF_QUERY,
@@ -876,6 +908,42 @@ mod tests {
         assert!(!looks_like_uuid("bac8bf6d-b199-4a74-91a9-657adeac8abZ"));
     }
 
+    // PR #12 regression (TOOL-128), guarded without the network: a slug ref must
+    // NOT add the UUID-validated `id` filter, or Linear rejects it with an
+    // "Argument Validation Error". Only a real UUID gets the `id` branch.
+    #[test]
+    fn epic_ref_filter_omits_id_for_slug() {
+        let filter = build_epic_ref_filter("d9994a56fc60");
+        let or = filter["or"].as_array().expect("filter has an `or` array");
+        assert_eq!(
+            or.len(),
+            1,
+            "a slug ref must produce only the slugId clause"
+        );
+        assert!(or[0].get("slugId").is_some());
+        assert!(
+            or.iter().all(|c| c.get("id").is_none()),
+            "no `id` clause may be sent for a non-UUID slug: {filter}"
+        );
+    }
+
+    #[test]
+    fn epic_ref_filter_includes_id_for_uuid() {
+        let filter = build_epic_ref_filter("bac8bf6d-b199-4a74-91a9-657adeac8ab4");
+        let or = filter["or"].as_array().expect("filter has an `or` array");
+        assert_eq!(or.len(), 2, "a UUID ref queries both slugId and id");
+        assert!(or.iter().any(|c| c.get("id").is_some()));
+    }
+
+    #[test]
+    fn epic_ref_filter_extracts_slug_from_url() {
+        let filter =
+            build_epic_ref_filter("https://linear.app/example-org/initiative/pre-locale/title");
+        let or = filter["or"].as_array().unwrap();
+        assert_eq!(or[0]["slugId"]["eq"], "pre-locale");
+        assert_eq!(or.len(), 1, "a slug extracted from a URL is not a UUID");
+    }
+
     // --- Bug 2: a long body must go to `content`, never the capped `description` ---
 
     #[test]
@@ -1033,7 +1101,11 @@ mod tests {
         assert_eq!(epic["projects"]["nodes"][0]["id"], "project-uuid");
         assert_eq!(
             *client.calls.borrow(),
-            ["initiativeCreate", "projectCreate", "initiativeToProjectCreate"]
+            [
+                "initiativeCreate",
+                "projectCreate",
+                "initiativeToProjectCreate"
+            ]
         );
     }
 
@@ -1044,7 +1116,10 @@ mod tests {
             ..MockClient::default()
         };
         let err = create_epic(&client, "My epic", None, &["team-1".to_string()]).unwrap_err();
-        assert!(err.contains("Rolled back"), "error should report rollback: {err}");
+        assert!(
+            err.contains("Rolled back"),
+            "error should report rollback: {err}"
+        );
         assert!(
             client.calls.borrow().contains(&"initiativeDelete"),
             "a failed project create must roll back the orphan initiative: {:?}",
@@ -1059,7 +1134,10 @@ mod tests {
             ..MockClient::default()
         };
         let err = create_epic(&client, "My epic", None, &["team-1".to_string()]).unwrap_err();
-        assert!(err.contains("Rolled back"), "error should report rollback: {err}");
+        assert!(
+            err.contains("Rolled back"),
+            "error should report rollback: {err}"
+        );
         let calls = client.calls.borrow();
         assert!(
             calls.contains(&"projectDelete"),
@@ -1171,7 +1249,10 @@ mod tests {
             ..empty_update_opts("pre-locale")
         };
         let err = build_epic_update_inputs(&opts).unwrap_err();
-        assert!(err.contains("YYYY-MM-DD"), "should reject non-ISO date, got: {err}");
+        assert!(
+            err.contains("YYYY-MM-DD"),
+            "should reject non-ISO date, got: {err}"
+        );
     }
 
     #[test]

@@ -282,8 +282,11 @@ mod tests {
         use clap::Parser;
 
         let raw = vec![
-            "lql".to_string(), "relate".to_string(),
-            "PROD-834".to_string(), "PROD-833".to_string(), "blocked-by".to_string(),
+            "lql".to_string(),
+            "relate".to_string(),
+            "PROD-834".to_string(),
+            "PROD-833".to_string(),
+            "blocked-by".to_string(),
         ];
         let fixed = middleware::normalize_args(&raw).expect("should reorder");
         let cli = Cli::try_parse_from(&fixed).unwrap();

@@ -23,7 +23,10 @@ fn run_view(config: &Config, opts: &ProjectViewOpts) -> Result<(), String> {
     let project = find_project_by_ref(&client, &opts.project_ref)?;
 
     if opts.json {
-        println!("{}", serde_json::to_string_pretty(&project).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&project).unwrap_or_default()
+        );
     } else {
         println!("{}", format::format_project_view(&project));
     }
@@ -35,7 +38,8 @@ fn run_update(config: &Config, opts: &ProjectUpdateOpts) -> Result<(), String> {
         return Err("--description and --description-file are mutually exclusive".to_string());
     }
 
-    let body = get_description_from_args(opts.description.as_ref(), opts.description_file.as_ref())?;
+    let body =
+        get_description_from_args(opts.description.as_ref(), opts.description_file.as_ref())?;
 
     let mut input = serde_json::Map::new();
     let mut fields: Vec<String> = Vec::new();
@@ -56,7 +60,10 @@ fn run_update(config: &Config, opts: &ProjectUpdateOpts) -> Result<(), String> {
         fields.push("content".to_string());
     }
     if let Some(summary) = opts.summary.as_deref() {
-        input.insert("description".to_string(), Value::String(summary.to_string()));
+        input.insert(
+            "description".to_string(),
+            Value::String(summary.to_string()),
+        );
         fields.push("summary".to_string());
     }
     if let Some(target) = opts.target_date.as_deref() {
@@ -93,7 +100,10 @@ fn run_update(config: &Config, opts: &ProjectUpdateOpts) -> Result<(), String> {
             "project": updated,
             "fields": fields,
         });
-        println!("{}", serde_json::to_string_pretty(&payload).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&payload).unwrap_or_default()
+        );
     } else {
         println!("{}", format::format_epic_updated(&project_slug, &fields));
     }
