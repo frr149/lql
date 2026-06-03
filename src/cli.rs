@@ -628,10 +628,49 @@ pub fn command_prefers_machine_mode(command: &Command) -> bool {
     }
 }
 
+#[cfg(test)]
+thread_local! {
+    /// Test-only sink: when `Some`, `emit_note` records into it instead of
+    /// writing to stderr, so a unit test can assert the note text and the fact
+    /// that it was emitted — without spawning a subprocess.
+    static NOTE_CAPTURE: std::cell::RefCell<Option<Vec<String>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Emits a diagnostic note about an assumption lql made while normalizing input
+/// (e.g. `--state Todo` → `unstarted`).
+///
+/// Notes ALWAYS go to stderr, in every mode — including machine mode (`--json`
+/// or non-TTY stderr). stderr is a separate stream from the stdout data
+/// payload, so JSON/JSONL output stays uncorrupted while the caller (human or
+/// AI agent) still learns what was assumed. This is the transparency half of
+/// the tolerance contract documented in `docs/mdd_findings.md` ("Always say
+/// what you assumed"). Suppressing notes in machine mode hid them from the very
+/// consumer that needs them most — the agent (TOOL-127).
 fn emit_note(message: &str) {
-    if !machine_mode() {
-        eprintln!("{message}");
+    #[cfg(test)]
+    {
+        let captured = NOTE_CAPTURE.with(|c| match c.borrow_mut().as_mut() {
+            Some(buf) => {
+                buf.push(message.to_string());
+                true
+            }
+            None => false,
+        });
+        if captured {
+            return;
+        }
     }
+    eprintln!("{message}");
+}
+
+/// Test helper: runs `f` with note capture active and returns every note
+/// `emit_note` produced during it.
+#[cfg(test)]
+fn capture_notes<F: FnOnce()>(f: F) -> Vec<String> {
+    NOTE_CAPTURE.with(|c| *c.borrow_mut() = Some(Vec::new()));
+    f();
+    NOTE_CAPTURE.with(|c| c.borrow_mut().take().unwrap_or_default())
 }
 
 /// Normaliza un valor de estado (UI names → API values)
@@ -723,10 +762,20 @@ mod tests {
         ])
     }
 
-    // ERR-03: --state Todo → unstarted
+    // ERR-03: --state Todo → unstarted, AND the assumption is announced.
     #[test]
     fn test_normalize_state_todo() {
-        assert_eq!(normalize_state("Todo", &state_aliases()), "unstarted");
+        let mut value = String::new();
+        let notes = capture_notes(|| {
+            value = normalize_state("Todo", &state_aliases());
+        });
+        assert_eq!(value, "unstarted");
+        assert!(
+            notes
+                .iter()
+                .any(|n| n.contains("Todo") && n.contains("unstarted")),
+            "ERR-03: normalizing Todo must announce the assumption, got {notes:?}"
+        );
     }
 
     // ERR-04: --state "In Progress" → started
@@ -735,10 +784,52 @@ mod tests {
         assert_eq!(normalize_state("In Progress", &state_aliases()), "started");
     }
 
-    // ERR-05: --state Done → completed
+    // ERR-05: --state Done → completed, AND the assumption is announced.
     #[test]
     fn test_normalize_state_done() {
-        assert_eq!(normalize_state("Done", &state_aliases()), "completed");
+        let mut value = String::new();
+        let notes = capture_notes(|| {
+            value = normalize_state("Done", &state_aliases());
+        });
+        assert_eq!(value, "completed");
+        assert!(
+            notes
+                .iter()
+                .any(|n| n.contains("Done") && n.contains("completed")),
+            "ERR-05: normalizing Done must announce the assumption, got {notes:?}"
+        );
+    }
+
+    // TOOL-127: machine mode must NOT silence normalization notes. The agent
+    // (which runs lql with --json / non-TTY stderr, i.e. machine mode) is
+    // exactly the consumer that needs to learn the canonical value.
+    #[test]
+    fn normalization_note_reaches_machine_mode() {
+        set_machine_mode(true);
+        let notes = capture_notes(|| {
+            let _ = normalize_state("Todo", &state_aliases());
+        });
+        set_machine_mode(false);
+        assert!(
+            notes.iter().any(|n| n.contains("normalized")),
+            "TOOL-127: machine mode must still emit the assumption note, got {notes:?}"
+        );
+    }
+
+    // The transparency contract also covers priority normalization.
+    #[test]
+    fn test_normalize_priority_announces_assumption() {
+        let mut value = Err(String::new());
+        let notes = capture_notes(|| {
+            value = normalize_priority("urgent", &priority_aliases());
+        });
+        assert_eq!(value, Ok(1));
+        assert!(
+            notes
+                .iter()
+                .any(|n| n.contains("urgent") && n.contains('1')),
+            "normalizing priority urgent must announce the assumption, got {notes:?}"
+        );
     }
 
     // ERR-06: --state cancelled (doble L) → canceled
