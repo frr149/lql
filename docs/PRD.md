@@ -590,7 +590,7 @@ rustup target add x86_64-unknown-linux-gnu
 cargo build --release --target x86_64-unknown-linux-musl
 
 # Copiar a homelab
-scp target/x86_64-unknown-linux-musl/release/lql homelab.frr.dev:~/.local/bin/
+scp target/x86_64-unknown-linux-musl/release/lql deploy-host.example.com:~/.local/bin/
 ```
 
 Sin git clone, sin venv, sin runtime. Un binario.

@@ -24,13 +24,13 @@ install:
 release:
     cargo build --release
 
-# Cross-compile para homelab (Linux musl)
+# Cross-compile para el host de deploy (Linux musl)
 cross:
     cargo build --release --target x86_64-unknown-linux-musl
 
-# Deploy a homelab
+# Deploy al host remoto (env LQL_DEPLOY_HOST)
 deploy: cross
-    scp target/x86_64-unknown-linux-musl/release/lql homelab.frr.dev:~/.local/bin/
+    scp target/x86_64-unknown-linux-musl/release/lql ${LQL_DEPLOY_HOST:?'set LQL_DEPLOY_HOST'}:~/.local/bin/
 
 # Lint (warnings = error)
 lint:

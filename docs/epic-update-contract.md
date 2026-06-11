@@ -134,7 +134,7 @@ cb19ff35fa52 [Active] PROD — Bastidor v1.0
   ─────
   Projects: 28fe0617-0bee-4fcd-aad1-b1626197e22a "Bastidor v1.0" [PROD]
 [12]{id,state,labels,title,priority,age,due,project}:
-  "PROD-1130",Backlog,"acme,bastidor,seo","Cutover blocker: perfiles vivos 404 bajo Caddy+Bastidor",1,today,"","Bastidor v1.0"
+  "PROD-1130",Backlog,"acme,proxy,seo","Cutover blocker: live profiles 404 behind the new proxy",1,today,"","Proxy v1.0"
 ── 12 issues (12 backlog)
 ```
 
