@@ -73,6 +73,13 @@ const IGNORE_ALLOWLIST: &[(&str, &str)] = &[
         "integration_epic_view_succeeds",
         "live smoke; regression guarded in CI by queries::budget_tests + epic::build_epic_ref_filter tests",
     ),
+    // Known-bug reproduction: `lql update --state` silently dropped.
+    // Fails today by design; ignored until fixed. See
+    // docs/bugs/update-state-ignored-no-changes.md.
+    (
+        "test_state_by_display_name_is_dropped_bug",
+        "reproduces open bug: update --state ignored; see docs/bugs/update-state-ignored-no-changes.md",
+    ),
 ];
 
 /// Returns the names of `#[ignore]`d tests found in `source` that are not in

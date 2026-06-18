@@ -295,6 +295,78 @@ mod tests {
         assert!(err.contains("not found"), "{err}");
     }
 
+    // --- BUG: `--state` silently ignored → "No changes specified" (2026-06-18) ---
+    //
+    // See docs/bugs/update-state-ignored-no-changes.md.
+    //
+    // `--state "In Review"` (a custom workflow state in the `started` category)
+    // cannot be resolved by the normalize_state → find_state pipeline:
+    //   1. normalize_state returns "in review" (no alias, not a category value).
+    //   2. find_state matches on state_type (category), never the display name,
+    //      so it returns None.
+    // In update::run, `has_changes = true` lives INSIDE the `if let Some(state)`
+    // arm (update.rs:49-53), so a None result is dropped silently and the user
+    // sees the misleading "No changes specified" guard instead of a real error.
+    //
+    // This test pins the DESIRED behaviour: a workflow state must be resolvable
+    // by its display name. It FAILS today, so it is `#[ignore]`d (and listed in
+    // tests/meta_tests.rs IGNORE_ALLOWLIST). Remove the `#[ignore]` and the
+    // allowlist entry when the bug is fixed.
+    #[test]
+    #[ignore = "BUG: see docs/bugs/update-state-ignored-no-changes.md — fix deferred"]
+    fn test_state_by_display_name_is_dropped_bug() {
+        use crate::client::{LinearMeta, StateInfo, TeamInfo};
+        use std::collections::HashMap;
+
+        // A team with a custom "In Review" state (category: started), exactly the
+        // kind of state that triggered the real-world report on PROD-1244.
+        let team = TeamInfo {
+            id: "team-uuid".into(),
+            key: "PROD".into(),
+            name: "Product".into(),
+            states: vec![
+                StateInfo {
+                    id: "st-backlog".into(),
+                    name: "Backlog".into(),
+                    state_type: "backlog".into(),
+                },
+                StateInfo {
+                    id: "st-review".into(),
+                    name: "In Review".into(),
+                    state_type: "started".into(),
+                },
+            ],
+            projects: vec![],
+        };
+        let meta = LinearMeta {
+            teams: vec![team.clone()],
+            labels: vec![],
+        };
+
+        // Default aliases (mirror config.example.toml [state-aliases]).
+        let aliases: HashMap<String, String> = HashMap::from([
+            ("Todo".into(), "unstarted".into()),
+            ("In Progress".into(), "started".into()),
+            ("Done".into(), "completed".into()),
+            ("Canceled".into(), "canceled".into()),
+            ("Cancelled".into(), "canceled".into()),
+        ]);
+
+        // This is exactly what update::run does for `--state "In Review"`.
+        let normalized = cli::normalize_state("In Review", &aliases);
+        let resolved = meta.find_state(&team, &normalized);
+
+        // DESIRED: "In Review" resolves to the workflow state of the same name.
+        // ACTUAL (bug): normalize_state -> "in review", find_state(.., "in review")
+        // -> None, so this assertion fails and `--state` is silently dropped.
+        assert!(
+            resolved.is_some(),
+            "BUG: state \"In Review\" should resolve by display name, but \
+             normalize_state produced {normalized:?} and find_state returned None"
+        );
+        assert_eq!(resolved.unwrap().name, "In Review");
+    }
+
     // ERR-54: issue encontrada exitosamente
     #[test]
     fn test_find_issue_success() {
