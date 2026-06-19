@@ -7,5 +7,14 @@ git_tag_enable = true
 # binary assets, triggered by the tag above. release-plz must NOT also create a
 # GitHub Release, or the two collide on the same tag.
 git_release_enable = false
+#
+# ⚠️ MERGE RELEASE PRs WITH A MERGE COMMIT (or rebase), NEVER A SQUASH.
+# Squashing a "chore: release vX.Y.Z" PR creates a NEW commit on main while the
+# release tag stays on the orphaned PR-branch commit. The tag becomes unreachable
+# from main, so release-plz can no longer compute the next version and silently
+# stops opening release PRs (it reports "next version is <current>"). v1.7.1's tag
+# was orphaned this way; v1.7.2 was cut manually to realign. If it breaks again,
+# cut manually: bump version + CHANGELOG, commit to main, then
+# `git tag vX.Y.Z && git push origin main vX.Y.Z` (cargo-dist publishes on the tag).
 # Use conventional commits for changelog
 changelog_update = true
