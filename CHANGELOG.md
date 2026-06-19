@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.2](https://github.com/frr149/lql/releases/tag/v1.7.2) - 2026-06-19
+
+### Fixed
+
+- `lql update`/`create --state` now resolves a workflow state by its **display name** (case-insensitive). Custom states like "In Review" work instead of failing with the misleading "No changes specified", and `--state "Canceled"` can no longer write a *different* state of the same category (e.g. "Duplicate") — the workflow category (`state_type`) was being treated as a unique identifier. An ambiguous category is now a hard error listing the candidates, and an unresolvable state lists the available states.
+- `lql update --label` preserves existing labels **by ID**, so adding a label can no longer silently drop another whose name failed to re-resolve (`issueUpdate.labelIds` replaces, it does not append).
+
 ## [1.7.1](https://github.com/frr149/lql/releases/tag/v1.7.1) - 2026-06-03
 
 ### Fixed
