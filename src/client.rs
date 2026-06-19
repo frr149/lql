@@ -225,6 +225,55 @@ impl LinearMeta {
         team.states.iter().find(move |s| s.state_type == state_type)
     }
 
+    /// Resolve a workflow state for a MUTATION (a singular target).
+    ///
+    /// Display **name** wins over **category**: `--state "Canceled"` resolves the
+    /// state literally named "Canceled", never an arbitrary first-of-category
+    /// (e.g. "Duplicate"). A category that matches more than one state is a hard
+    /// `Ambiguous` error, never a silent pick; an unresolvable input lists the
+    /// available states instead of being dropped. See docs/bugs and /types V8.
+    pub fn find_state_for_mutation<'a>(
+        &self,
+        team: &'a TeamInfo,
+        input: &str,
+        aliases: &std::collections::HashMap<String, String>,
+    ) -> Result<&'a StateInfo, String> {
+        // 1. Exact display-name match (case-insensitive): identity wins.
+        if let Some(state) = team
+            .states
+            .iter()
+            .find(|s| s.name.eq_ignore_ascii_case(input))
+        {
+            return Ok(state);
+        }
+        // 2. Fall back to category (via aliases / raw category literals).
+        let category = crate::cli::normalize_state(input, aliases);
+        let in_category: Vec<&StateInfo> = team
+            .states
+            .iter()
+            .filter(|s| s.state_type == category)
+            .collect();
+        match in_category.as_slice() {
+            [only] => Ok(only),
+            [] => {
+                let available: Vec<&str> = team.states.iter().map(|s| s.name.as_str()).collect();
+                Err(format!(
+                    "State \"{input}\" not found in team {}. Available: {}",
+                    team.key,
+                    available.join(", ")
+                ))
+            }
+            many => {
+                let names: Vec<&str> = many.iter().map(|s| s.name.as_str()).collect();
+                Err(format!(
+                    "State \"{input}\" is ambiguous: category \"{category}\" has {} states ({}). Use an exact state name.",
+                    names.len(),
+                    names.join(", ")
+                ))
+            }
+        }
+    }
+
     pub fn find_label(&self, name: &str) -> Result<&LabelInfo, String> {
         self.labels
             .iter()

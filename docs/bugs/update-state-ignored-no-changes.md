@@ -1,6 +1,9 @@
 # BUG: `lql update --state` silently ignored → "No changes specified"
 
-- **Status:** open (fix deferred — this report + a reproduction test only)
+- **Status:** FIXED 2026-06-19 — `LinearMeta::find_state_for_mutation` resolves by display
+  name (identity wins over category), errors on ambiguous categories, and never silent-drops;
+  labels are preserved by ID. Pinned by `test_find_state_for_mutation_name_wins_and_ambiguity_errors`
+  and `tests/state_resolution_props.rs`. Root cause classified as /types V8 (conflación de conceptos).
 - **Reported:** 2026-06-18
 - **Component:** `update` subcommand
 - **Severity:** high — `update --state` is the primary state-transition command and it

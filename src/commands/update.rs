@@ -40,17 +40,16 @@ pub fn run(config: &Config, opts: &UpdateOpts) -> Result<(), String> {
     // Estado
     let mut new_state_name = old_state.to_string();
     if let Some(ref state_str) = opts.state {
-        let state_type = cli::normalize_state(state_str, &config.state_aliases);
         let effective_team = if let Some(ref target_key) = opts.team {
             meta.find_team(target_key)?
         } else {
             team
         };
-        if let Some(state) = meta.find_state(effective_team, &state_type) {
-            input["stateId"] = serde_json::json!(state.id);
-            new_state_name = state.name.clone();
-            has_changes = true;
-        }
+        let state =
+            meta.find_state_for_mutation(effective_team, state_str, &config.state_aliases)?;
+        input["stateId"] = serde_json::json!(state.id);
+        new_state_name = state.name.clone();
+        has_changes = true;
     }
 
     // Prioridad
@@ -67,34 +66,29 @@ pub fn run(config: &Config, opts: &UpdateOpts) -> Result<(), String> {
         has_changes = true;
     }
 
-    // Labels (additive)
+    // Labels (additive). Current labels are preserved by ID. Re-resolving them by
+    // name would be lossy: any name that failed to resolve would be silently
+    // dropped from the replacement set, deleting a label the user never touched
+    // (issueUpdate.labelIds replaces, it does not append). See /types V8b.
     if let Some(ref label_names) = opts.label {
-        // Obtener labels actuales
-        let current_labels: Vec<String> = issue
+        let mut all_label_ids: Vec<serde_json::Value> = issue
             .get("labels")
             .and_then(|l| l.get("nodes"))
             .and_then(|n| n.as_array())
             .map(|arr| {
                 arr.iter()
-                    .filter_map(|l| {
-                        l.get("name")
-                            .and_then(|n| n.as_str())
-                            .map(|s| s.to_string())
-                    })
+                    .filter_map(|l| l.get("id").and_then(|i| i.as_str()))
+                    .map(|id| serde_json::json!(id))
                     .collect()
             })
             .unwrap_or_default();
 
-        // Resolver todos los labels (actuales + nuevos)
-        let mut all_label_ids = Vec::new();
-        for name in &current_labels {
-            if let Ok(label) = meta.find_label_for_team(team, name) {
-                all_label_ids.push(serde_json::json!(label.id));
-            }
-        }
         for name in label_names {
             let label = meta.find_label_for_team(team, name)?;
-            all_label_ids.push(serde_json::json!(label.id));
+            let id = serde_json::json!(label.id);
+            if !all_label_ids.contains(&id) {
+                all_label_ids.push(id);
+            }
         }
         input["labelIds"] = serde_json::json!(all_label_ids);
         has_changes = true;
@@ -295,46 +289,37 @@ mod tests {
         assert!(err.contains("not found"), "{err}");
     }
 
-    // --- BUG: `--state` silently ignored → "No changes specified" (2026-06-18) ---
+    // --- FIXED BUG: `--state` resolution by display name + category collision ---
     //
-    // See docs/bugs/update-state-ignored-no-changes.md.
-    //
-    // `--state "In Review"` (a custom workflow state in the `started` category)
-    // cannot be resolved by the normalize_state → find_state pipeline:
-    //   1. normalize_state returns "in review" (no alias, not a category value).
-    //   2. find_state matches on state_type (category), never the display name,
-    //      so it returns None.
-    // In update::run, `has_changes = true` lives INSIDE the `if let Some(state)`
-    // arm (update.rs:49-53), so a None result is dropped silently and the user
-    // sees the misleading "No changes specified" guard instead of a real error.
-    //
-    // This test pins the DESIRED behaviour: a workflow state must be resolvable
-    // by its display name. It FAILS today, so it is `#[ignore]`d (and listed in
-    // tests/meta_tests.rs IGNORE_ALLOWLIST). Remove the `#[ignore]` and the
-    // allowlist entry when the bug is fixed.
+    // Was docs/bugs/update-state-ignored-no-changes.md (2026-06-18). The fix is
+    // `LinearMeta::find_state_for_mutation`: display name wins over category, an
+    // ambiguous category is a hard error (never a silent first-of-category pick),
+    // and an unresolvable input lists the available states (never silent-dropped).
+    // See /types V8 (conflación de conceptos).
     #[test]
-    #[ignore = "BUG: see docs/bugs/update-state-ignored-no-changes.md — fix deferred"]
-    fn test_state_by_display_name_is_dropped_bug() {
+    fn test_find_state_for_mutation_name_wins_and_ambiguity_errors() {
         use crate::client::{LinearMeta, StateInfo, TeamInfo};
         use std::collections::HashMap;
 
-        // A team with a custom "In Review" state (category: started), exactly the
-        // kind of state that triggered the real-world report on PROD-1244.
+        // A team with TWO started states and TWO canceled states — exactly the
+        // shape that made the old category-based resolver pick the wrong one.
+        let st = |id: &str, name: &str, ty: &str| StateInfo {
+            id: id.into(),
+            name: name.into(),
+            state_type: ty.into(),
+        };
         let team = TeamInfo {
             id: "team-uuid".into(),
             key: "PROD".into(),
             name: "Product".into(),
             states: vec![
-                StateInfo {
-                    id: "st-backlog".into(),
-                    name: "Backlog".into(),
-                    state_type: "backlog".into(),
-                },
-                StateInfo {
-                    id: "st-review".into(),
-                    name: "In Review".into(),
-                    state_type: "started".into(),
-                },
+                st("st-backlog", "Backlog", "backlog"),
+                st("st-review", "In Review", "started"),
+                st("st-progress", "In Progress", "started"),
+                // "Duplicate" is listed BEFORE "Canceled": a `.first()`-by-category
+                // resolver would wrongly return it for `--state "Canceled"`.
+                st("st-duplicate", "Duplicate", "canceled"),
+                st("st-canceled", "Canceled", "canceled"),
             ],
             projects: vec![],
         };
@@ -342,8 +327,6 @@ mod tests {
             teams: vec![team.clone()],
             labels: vec![],
         };
-
-        // Default aliases (mirror config.example.toml [state-aliases]).
         let aliases: HashMap<String, String> = HashMap::from([
             ("Todo".into(), "unstarted".into()),
             ("In Progress".into(), "started".into()),
@@ -352,19 +335,34 @@ mod tests {
             ("Cancelled".into(), "canceled".into()),
         ]);
 
-        // This is exactly what update::run does for `--state "In Review"`.
-        let normalized = cli::normalize_state("In Review", &aliases);
-        let resolved = meta.find_state(&team, &normalized);
+        // The original bug: a custom display name now resolves (no silent drop).
+        let review = meta
+            .find_state_for_mutation(&team, "In Review", &aliases)
+            .expect("custom display name must resolve");
+        assert_eq!(review.id, "st-review");
 
-        // DESIRED: "In Review" resolves to the workflow state of the same name.
-        // ACTUAL (bug): normalize_state -> "in review", find_state(.., "in review")
-        // -> None, so this assertion fails and `--state` is silently dropped.
+        // The collision: "Canceled" the NAME must win over "Duplicate" (same
+        // category, listed first) — never write the wrong state.
+        let canceled = meta
+            .find_state_for_mutation(&team, "Canceled", &aliases)
+            .expect("exact name must resolve");
+        assert_eq!(canceled.id, "st-canceled");
+        assert_eq!(canceled.name, "Canceled");
+
+        // A bare category with >1 member is a hard error, not a silent pick.
+        let err = meta
+            .find_state_for_mutation(&team, "started", &aliases)
+            .unwrap_err();
+        assert!(err.contains("ambiguous"), "{err}");
+
+        // An unresolvable input lists the available states.
+        let err = meta
+            .find_state_for_mutation(&team, "Nonexistent", &aliases)
+            .unwrap_err();
         assert!(
-            resolved.is_some(),
-            "BUG: state \"In Review\" should resolve by display name, but \
-             normalize_state produced {normalized:?} and find_state returned None"
+            err.contains("not found") && err.contains("Backlog"),
+            "{err}"
         );
-        assert_eq!(resolved.unwrap().name, "In Review");
     }
 
     // ERR-54: issue encontrada exitosamente
