@@ -133,6 +133,7 @@ query IssueByIdentifier($filter: IssueFilter) {
       }
       labels {
         nodes {
+          id
           name
         }
       }

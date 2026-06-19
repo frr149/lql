@@ -28,10 +28,8 @@ pub fn run(config: &Config, opts: &CreateOpts) -> Result<(), String> {
 
     // Estado
     if let Some(ref state_str) = opts.state {
-        let state_type = cli::normalize_state(state_str, &config.state_aliases);
-        if let Some(state) = meta.find_state(team, &state_type) {
-            input["stateId"] = serde_json::json!(state.id);
-        }
+        let state = meta.find_state_for_mutation(team, state_str, &config.state_aliases)?;
+        input["stateId"] = serde_json::json!(state.id);
     }
 
     // Prioridad
