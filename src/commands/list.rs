@@ -17,11 +17,18 @@ pub fn run(config: &Config, opts: &ListOpts) -> Result<(), String> {
     let mut filter = serde_json::json!({});
 
     if !opts.all_teams {
-        let (team_key, _ctx_project, ctx_label) = if let Some(team) = opts.team.as_deref() {
-            config.resolve_team(Some(team), &cwd)?
-        } else {
-            config.resolve_team(None, &cwd)?
-        };
+        let (team_key, _ctx_project, ctx_label, team_source) =
+            if let Some(team) = opts.team.as_deref() {
+                config.resolve_team(Some(team), &cwd)?
+            } else {
+                config.resolve_team(None, &cwd)?
+            };
+        if team_source == crate::config::TeamSource::Default {
+            crate::print_warning(
+                &crate::config::team_fallback_warning(&team_key),
+                crate::cli::machine_mode(),
+            );
+        }
 
         let team_info = meta.find_team(&team_key)?;
         filter["team"] = serde_json::json!({"key": {"eq": team_key}});

@@ -68,3 +68,31 @@ fn print_error(message: &str, machine_mode: bool) {
         eprintln!("✗ {message}");
     }
 }
+
+/// Formats a warning line following the same machine/human convention as
+/// `print_error`. Pure, so it can be asserted without capturing stderr.
+fn warning_line(message: &str, machine_mode: bool) -> String {
+    if machine_mode {
+        format!("warning: {message}")
+    } else {
+        format!("\u{26a0} {message}")
+    }
+}
+
+/// Emits a warning to **stderr** (never stdout, which carries the TOON/machine
+/// payload). Used to announce implicit fallbacks such as the default team.
+pub fn print_warning(message: &str, machine_mode: bool) {
+    eprintln!("{}", warning_line(message, machine_mode));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // T01: warning line honors the machine/human convention.
+    #[test]
+    fn test_print_warning_machine_and_human_format() {
+        assert_eq!(warning_line("no team", true), "warning: no team");
+        assert_eq!(warning_line("no team", false), "\u{26a0} no team");
+    }
+}

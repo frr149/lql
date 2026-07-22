@@ -11,7 +11,14 @@ pub fn run(config: &Config, opts: &CreateOpts) -> Result<(), String> {
 
     // Resolver team/project/label
     let title = opts.resolved_title()?;
-    let (team_key, ctx_project, ctx_label) = config.resolve_team(opts.team.as_deref(), &cwd)?;
+    let (team_key, ctx_project, ctx_label, team_source) =
+        config.resolve_team(opts.team.as_deref(), &cwd)?;
+    if team_source == crate::config::TeamSource::Default {
+        crate::print_warning(
+            &crate::config::team_fallback_warning(&team_key),
+            crate::cli::machine_mode(),
+        );
+    }
     let team = meta.find_team(&team_key)?;
 
     // Construir input de la mutación
@@ -94,6 +101,19 @@ pub fn run(config: &Config, opts: &CreateOpts) -> Result<(), String> {
 
 fn get_description(opts: &CreateOpts) -> Result<Option<String>, String> {
     get_description_from_args(opts.description.as_ref(), opts.description_file.as_ref())
+}
+
+/// Rejects passing both `--description` and `--description-file`. Shared by
+/// `create`, `project create` and `project update` so none of them silently
+/// drops one source (semantic honesty).
+pub fn reject_conflicting_description_sources(
+    description: Option<&String>,
+    description_file: Option<&String>,
+) -> Result<(), String> {
+    if description.is_some() && description_file.is_some() {
+        return Err("--description and --description-file are mutually exclusive".to_string());
+    }
+    Ok(())
 }
 
 pub fn get_description_from_args(

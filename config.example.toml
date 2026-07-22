@@ -20,6 +20,11 @@
 sort = "priority"
 states = ["backlog", "unstarted", "started"]
 limit = 50
+# Fallback team used when no --team is given and the cwd matches no [context-map]
+# entry (e.g. running lql from a non-linked directory). When it kicks in, lql
+# prints a warning to stderr announcing the substitution. Leave unset to keep the
+# strict "Could not detect team" error instead.
+# team = "ENG"
 
 [context-map]
 # directorio → team, project, label

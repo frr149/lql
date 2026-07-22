@@ -43,6 +43,11 @@ pub struct Defaults {
     pub states: Vec<String>,
     #[serde(default = "default_limit")]
     pub limit: u32,
+    /// Fallback team used when no `--team` is given and the cwd matches no
+    /// `[context-map]` entry. When it kicks in, callers announce the
+    /// substitution on stderr (see `team_fallback_warning`).
+    #[serde(default)]
+    pub team: Option<String>,
 }
 
 impl Default for Defaults {
@@ -51,8 +56,29 @@ impl Default for Defaults {
             sort: default_sort(),
             states: default_states(),
             limit: default_limit(),
+            team: None,
         }
     }
+}
+
+/// How `resolve_team` arrived at the team it returned.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TeamSource {
+    /// An explicit `--team` override.
+    Override,
+    /// A `[context-map]` entry matched the cwd.
+    Context,
+    /// The `[defaults] team` fallback (no override, no context match).
+    Default,
+}
+
+/// Message announcing that no team was detected and the configured default was
+/// substituted. Callers emit it to stderr — never stdout, which carries the
+/// TOON/machine payload (semantic honesty: announce the implicit fallback).
+pub fn team_fallback_warning(team: &str) -> String {
+    format!(
+        "no team detected from context; using configured default team {team} ([defaults].team)"
+    )
 }
 
 fn default_sort() -> String {
@@ -114,30 +140,56 @@ impl Config {
         })
     }
 
-    /// Resuelve el team: override > context-map > error
+    /// Resuelve el team: override > context-map > default > error.
+    ///
+    /// El cuarto elemento indica la procedencia (`TeamSource`) para que el caller
+    /// pueda anunciar por stderr cuando se ha usado el default (honestidad
+    /// semántica: no aplicar un fallback implícito en silencio).
     pub fn resolve_team(
         &self,
         team_override: Option<&str>,
         cwd: &Path,
-    ) -> Result<(String, Option<String>, Option<String>), String> {
+    ) -> Result<(String, Option<String>, Option<String>, TeamSource), String> {
         if let Some(team) = team_override {
-            // Comprobar teams retirados
-            if let Some(msg) = self.retired_teams.get(team) {
+            // Comprobar teams retirados (case-insensitive, ley de Postel).
+            if let Some(msg) = self.retired_team_message(team) {
                 return Err(format!("Team {team} is retired. {msg}"));
             }
-            return Ok((team.to_string(), None, None));
+            return Ok((team.to_string(), None, None, TeamSource::Override));
         }
 
-        match self.resolve_context(cwd) {
-            Some(ctx) => Ok((ctx.team, ctx.project, ctx.label)),
-            None => {
-                let cwd_display = cwd.display();
-                Err(format!(
-                    "Could not detect team from {cwd_display}. Use --team <TEAM> or add a [context-map] entry in {}. See: lql doctor",
-                    config_path().display()
-                ))
-            }
+        if let Some(ctx) = self.resolve_context(cwd) {
+            return Ok((ctx.team, ctx.project, ctx.label, TeamSource::Context));
         }
+
+        if let Some(default_team) = self.defaults.team.as_deref() {
+            // Un default retirado se rechaza igual que un --team retirado: el
+            // fallback no puede colar un team muerto.
+            if let Some(msg) = self.retired_team_message(default_team) {
+                return Err(format!("Team {default_team} is retired. {msg}"));
+            }
+            return Ok((
+                default_team.to_string(),
+                None,
+                None,
+                TeamSource::Default,
+            ));
+        }
+
+        let cwd_display = cwd.display();
+        Err(format!(
+            "Could not detect team from {cwd_display}. Use --team <TEAM> or add a [context-map] entry in {}. See: lql doctor",
+            config_path().display()
+        ))
+    }
+
+    /// Looks up the retirement message for a team key **case-insensitively**
+    /// (Postel's law: `tok`, `TOK` and `Tok` must all trip the retired hint).
+    fn retired_team_message(&self, team: &str) -> Option<&str> {
+        self.retired_teams
+            .iter()
+            .find(|(key, _)| key.eq_ignore_ascii_case(team))
+            .map(|(_, msg)| msg.as_str())
     }
 }
 
@@ -247,10 +299,79 @@ QIN = "Use: --team PROD --label phoenix"
         let config = test_config();
         let home = dirs::home_dir().unwrap();
         let cwd = home.join("code/reactor");
-        let (team, project, label) = config.resolve_team(Some("CONT"), &cwd).unwrap();
+        let (team, project, label, source) = config.resolve_team(Some("CONT"), &cwd).unwrap();
         assert_eq!(team, "CONT");
         assert!(project.is_none()); // override no trae project/label
         assert!(label.is_none());
+        assert_eq!(source, TeamSource::Override);
+    }
+
+    // T01: default team fallback (no override, no context match)
+    #[test]
+    fn test_resolve_team_falls_back_to_default() {
+        let mut config = test_config();
+        config.defaults.team = Some("KC".to_string());
+        let cwd = Path::new("/tmp/not-a-linked-repo");
+        let (team, project, label, source) = config.resolve_team(None, cwd).unwrap();
+        assert_eq!(team, "KC");
+        assert!(project.is_none());
+        assert!(label.is_none());
+        assert_eq!(source, TeamSource::Default);
+    }
+
+    // T01: an explicit override beats the configured default.
+    #[test]
+    fn test_resolve_team_override_beats_default() {
+        let mut config = test_config();
+        config.defaults.team = Some("KC".to_string());
+        let cwd = Path::new("/tmp/not-a-linked-repo");
+        let (team, _, _, source) = config.resolve_team(Some("CONT"), cwd).unwrap();
+        assert_eq!(team, "CONT");
+        assert_eq!(source, TeamSource::Override);
+    }
+
+    // T01: a context-map match beats the configured default.
+    #[test]
+    fn test_resolve_team_context_map_beats_default() {
+        let mut config = test_config();
+        config.defaults.team = Some("KC".to_string());
+        let home = dirs::home_dir().unwrap();
+        let cwd = home.join("code/reactor");
+        let (team, _, _, source) = config.resolve_team(None, &cwd).unwrap();
+        assert_eq!(team, "PROD"); // from context-map, not the default
+        assert_eq!(source, TeamSource::Context);
+    }
+
+    // T01: a default that names a retired team is rejected, same as an explicit
+    // --team — the fallback must not smuggle a retired team past the check.
+    #[test]
+    fn test_resolve_team_default_retired_is_rejected() {
+        let mut config = test_config();
+        config.defaults.team = Some("TOK".to_string()); // retired in test_config
+        let cwd = Path::new("/tmp/not-a-linked-repo");
+        let result = config.resolve_team(None, cwd);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("retired"));
+    }
+
+    // T01: with no default and no match, the original error is unchanged.
+    #[test]
+    fn test_resolve_team_no_default_no_match_errors_unchanged() {
+        let config = test_config(); // defaults.team is None
+        let cwd = Path::new("/tmp/not-a-linked-repo");
+        let err = config.resolve_team(None, cwd).unwrap_err();
+        assert!(err.starts_with("Could not detect team from /tmp/not-a-linked-repo"));
+        assert!(err.contains("Use --team <TEAM>"));
+        assert!(err.contains("See: lql doctor"));
+    }
+
+    // T01: the fallback warning names the substituted team and points at config.
+    #[test]
+    fn test_team_fallback_warning_names_team() {
+        let msg = team_fallback_warning("KC");
+        assert!(msg.contains("KC"), "{msg}");
+        assert!(msg.contains("default"), "{msg}");
+        assert!(msg.contains("[defaults].team"), "{msg}");
     }
 
     // ERR-34: team retirado TOK
@@ -270,6 +391,32 @@ QIN = "Use: --team PROD --label phoenix"
         let cwd = Path::new("/tmp");
         let result = config.resolve_team(Some("QIN"), cwd);
         assert!(result.is_err());
+    }
+
+    // FIX A: retired check is case-insensitive on the --team override path
+    // (Postel's law: accept tok/Tok/tOk and still trip the retired hint).
+    #[test]
+    fn test_retired_team_override_case_insensitive() {
+        let config = test_config();
+        let cwd = Path::new("/tmp");
+        for variant in ["tok", "Tok", "tOk", "qin", "Qin"] {
+            let err = config
+                .resolve_team(Some(variant), cwd)
+                .unwrap_err();
+            assert!(err.contains("retired"), "{variant} -> {err}");
+        }
+    }
+
+    // FIX A: retired check is case-insensitive on the [defaults] team path too.
+    #[test]
+    fn test_resolve_team_default_retired_case_insensitive() {
+        let cwd = Path::new("/tmp/not-a-linked-repo");
+        for variant in ["tok", "Tok", "qin"] {
+            let mut config = test_config();
+            config.defaults.team = Some(variant.to_string());
+            let err = config.resolve_team(None, cwd).unwrap_err();
+            assert!(err.contains("retired"), "default {variant} -> {err}");
+        }
     }
 
     // ERR-01: default sort es priority

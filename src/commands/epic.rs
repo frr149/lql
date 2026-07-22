@@ -30,7 +30,14 @@ fn run_create(config: &Config, opts: &EpicCreateOpts) -> Result<(), String> {
     let team_keys = if let Some(team_keys) = &opts.team {
         team_keys.clone()
     } else {
-        vec![config.resolve_team(None, &cwd)?.0]
+        let (team_key, _project, _label, team_source) = config.resolve_team(None, &cwd)?;
+        if team_source == crate::config::TeamSource::Default {
+            crate::print_warning(
+                &crate::config::team_fallback_warning(&team_key),
+                crate::cli::machine_mode(),
+            );
+        }
+        vec![team_key]
     };
     let team_ids = resolve_team_ids(&meta, &team_keys)?;
 
@@ -742,7 +749,7 @@ fn build_initiative_input(title: &str, body: Option<&str>) -> Value {
 }
 
 /// Linear caps `ProjectCreateInput.name` at 80 characters.
-const PROJECT_NAME_MAX: usize = 80;
+pub(crate) const PROJECT_NAME_MAX: usize = 80;
 
 /// The backing project's name, truncated to Linear's 80-char limit.
 ///
