@@ -71,14 +71,21 @@ fn project_from_create_response(data: &Value) -> Result<Value, String> {
     if !success {
         return Err("Linear rejected the project creation".to_string());
     }
-    // A JSON `null` node must NOT count as a created project: `.get("project")`
-    // returns `Some(Value::Null)`, so filter it out or `success` alone would
-    // fake a creation the server didn't actually return.
-    data.get("projectCreate")
+    // A created project is proven by a real `id` in the response node, not by
+    // `success` alone: `null`, `{}`, `false` or `[]` must all fail rather than
+    // print a hollow "created (unknown)". Read identity from the server's answer.
+    let node = data
+        .get("projectCreate")
         .and_then(|c| c.get("project"))
-        .filter(|v| !v.is_null())
-        .cloned()
-        .ok_or_else(|| "Could not parse created project from response".to_string())
+        .ok_or("Could not parse created project from response")?;
+    let has_id = node
+        .get("id")
+        .and_then(|v| v.as_str())
+        .is_some_and(|s| !s.is_empty());
+    if !has_id {
+        return Err("Project creation response has no project id".to_string());
+    }
+    Ok(node.clone())
 }
 
 fn run_create(config: &Config, opts: &ProjectCreateOpts) -> Result<(), String> {
@@ -373,11 +380,32 @@ mod tests {
         assert!(project_from_create_response(&data).is_err());
     }
 
-    // T02 [Sheldon verify BLOQUEANTE]: success:true with an explicit null project
-    // node must be an error, not a fake success.
+    // T02 [Sheldon verify]: success:true with a null / empty / wrong-typed node
+    // (no real id) must all be errors, not a hollow "created (unknown)".
     #[test]
-    fn test_project_create_null_node_is_error() {
-        let data = serde_json::json!({ "projectCreate": { "success": true, "project": null } });
-        assert!(project_from_create_response(&data).is_err());
+    fn test_project_create_node_without_id_is_error() {
+        for node in [
+            serde_json::json!(null),
+            serde_json::json!({}),
+            serde_json::json!(false),
+            serde_json::json!([]),
+            serde_json::json!({ "id": "" }),
+        ] {
+            let data = serde_json::json!({ "projectCreate": { "success": true, "project": node } });
+            assert!(
+                project_from_create_response(&data).is_err(),
+                "node {node} should be rejected"
+            );
+        }
+    }
+
+    // T02: a node with a real id is accepted and returned verbatim.
+    #[test]
+    fn test_project_create_valid_node_is_ok() {
+        let data = serde_json::json!({
+            "projectCreate": { "success": true, "project": { "id": "p1", "name": "X" } }
+        });
+        let node = project_from_create_response(&data).unwrap();
+        assert_eq!(node["id"], "p1");
     }
 }

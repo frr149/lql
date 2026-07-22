@@ -28,6 +28,13 @@ fn run_create(config: &Config, opts: &EpicCreateOpts) -> Result<(), String> {
     let meta = LinearMeta::fetch(&client)?;
 
     let team_keys = if let Some(team_keys) = &opts.team {
+        // An explicit --team must be rejected if retired, same as everywhere else
+        // (a retired team must never resolve as live).
+        for key in team_keys {
+            if let Some(msg) = config.retired_team_message(key) {
+                return Err(format!("Team {key} is retired. {msg}"));
+            }
+        }
         team_keys.clone()
     } else {
         let (team_key, _project, _label, team_source) = config.resolve_team(None, &cwd)?;

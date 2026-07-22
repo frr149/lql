@@ -159,6 +159,11 @@ impl Config {
         }
 
         if let Some(ctx) = self.resolve_context(cwd) {
+            // A retired team must never resolve as live, whatever the path it
+            // came from — including a stale [context-map] entry.
+            if let Some(msg) = self.retired_team_message(&ctx.team) {
+                return Err(format!("Team {} is retired. {msg}", ctx.team));
+            }
             return Ok((ctx.team, ctx.project, ctx.label, TeamSource::Context));
         }
 
@@ -185,7 +190,7 @@ impl Config {
 
     /// Looks up the retirement message for a team key **case-insensitively**
     /// (Postel's law: `tok`, `TOK` and `Tok` must all trip the retired hint).
-    fn retired_team_message(&self, team: &str) -> Option<&str> {
+    pub(crate) fn retired_team_message(&self, team: &str) -> Option<&str> {
         self.retired_teams
             .iter()
             .find(|(key, _)| key.eq_ignore_ascii_case(team))
@@ -405,6 +410,25 @@ QIN = "Use: --team PROD --label phoenix"
                 .unwrap_err();
             assert!(err.contains("retired"), "{variant} -> {err}");
         }
+    }
+
+    // FIX A: a retired team reached via a stale [context-map] entry must also be
+    // rejected — a retired team must never resolve as live, whatever the path.
+    #[test]
+    fn test_resolve_team_context_map_retired_is_rejected() {
+        let mut config = test_config();
+        let home = dirs::home_dir().unwrap();
+        let dir = home.join("code/legacy-tok");
+        config.context_map.insert(
+            dir.to_string_lossy().into_owned(),
+            ContextEntry {
+                team: "TOK".to_string(),
+                project: None,
+                label: None,
+            },
+        );
+        let err = config.resolve_team(None, &dir).unwrap_err();
+        assert!(err.contains("retired"), "{err}");
     }
 
     // FIX A: retired check is case-insensitive on the [defaults] team path too.
