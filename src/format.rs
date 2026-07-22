@@ -296,11 +296,18 @@ pub fn format_comments(issue: &Value) -> String {
             .and_then(|c| c.as_str())
             .unwrap_or("");
         let body = comment.get("body").and_then(|b| b.as_str()).unwrap_or("");
+        let id = comment.get("id").and_then(|v| v.as_str()).unwrap_or("");
 
         if i > 0 {
             lines.push("\u{2500}\u{2500}\u{2500}".to_string());
         }
-        lines.push(format!("{author} ({created}):"));
+        // The id is shown so `lql comment delete <id>` is usable without dropping
+        // to raw GraphQL / --json.
+        if id.is_empty() {
+            lines.push(format!("{author} ({created}):"));
+        } else {
+            lines.push(format!("{author} ({created}) [{id}]:"));
+        }
         lines.push(body.to_string());
     }
 
@@ -939,6 +946,29 @@ mod tests {
             "Should show second body: {output}"
         );
         assert!(output.contains("2026-05-01"), "Should show date: {output}");
+    }
+
+    // T03: comment ids are shown so `lql comment delete <id>` is usable without
+    // dropping to raw GraphQL / --json.
+    #[test]
+    fn test_format_comments_includes_id() {
+        let issue = serde_json::json!({
+            "comments": {
+                "nodes": [
+                    {
+                        "id": "cb08317c-480b-4c15-a4e7-66084bfac037",
+                        "body": "text",
+                        "createdAt": "2026-05-01T10:00:00Z",
+                        "user": {"name": "Alice"}
+                    }
+                ]
+            }
+        });
+        let output = format_comments(&issue);
+        assert!(
+            output.contains("cb08317c-480b-4c15-a4e7-66084bfac037"),
+            "Should show comment id: {output}"
+        );
     }
 
     #[test]

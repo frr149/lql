@@ -243,9 +243,14 @@ pub struct SearchOpts {
 }
 
 #[derive(Parser, Debug)]
+#[command(args_conflicts_with_subcommands = true)]
 pub struct CommentOpts {
+    /// Delete a comment (default action is "add a comment")
+    #[command(subcommand)]
+    pub action: Option<CommentAction>,
+
     /// Issue ID (e.g. PROD-587)
-    pub issue_id: String,
+    pub issue_id: Option<String>,
 
     /// Comment text
     pub body: Option<String>,
@@ -257,6 +262,18 @@ pub struct CommentOpts {
     /// Comment from file
     #[arg(long)]
     pub file: Option<String>,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum CommentAction {
+    /// Delete a comment by its id (see `lql comments <ISSUE>` for ids)
+    Delete(CommentDeleteOpts),
+}
+
+#[derive(Parser, Debug)]
+pub struct CommentDeleteOpts {
+    /// Comment id (UUID)
+    pub comment_id: String,
 }
 
 #[derive(Parser, Debug)]
@@ -505,6 +522,8 @@ pub struct ProjectOpts {
 
 #[derive(Subcommand, Debug)]
 pub enum ProjectAction {
+    /// Create a new project
+    Create(ProjectCreateOpts),
     /// View project details
     #[command(alias = "show", alias = "get")]
     View(ProjectViewOpts),
@@ -512,6 +531,28 @@ pub enum ProjectAction {
     Update(ProjectUpdateOpts),
     /// Add a comment to a project
     Comment(ProjectCommentOpts),
+}
+
+#[derive(Parser, Debug)]
+pub struct ProjectCreateOpts {
+    /// Project name (Linear caps names at 80 characters)
+    pub name: String,
+
+    /// Team (overrides auto-detect)
+    #[arg(long)]
+    pub team: Option<String>,
+
+    /// Long markdown body (project `content`)
+    #[arg(short, long)]
+    pub description: Option<String>,
+
+    /// Long markdown body from a file
+    #[arg(long)]
+    pub description_file: Option<String>,
+
+    /// Output as JSON
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -608,6 +649,7 @@ pub fn command_prefers_machine_mode(command: &Command) -> bool {
             EpicAction::Comment(_) => false,
         },
         Command::Project(opts) => match &opts.action {
+            ProjectAction::Create(create) => create.json,
             ProjectAction::View(view) => view.json,
             ProjectAction::Update(update) => update.json,
             ProjectAction::Comment(_) => false,
@@ -1062,7 +1104,8 @@ mod tests {
         ])
         .unwrap();
         if let Command::Comment(opts) = cli.command {
-            assert_eq!(opts.issue_id, "PROD-587");
+            assert!(opts.action.is_none());
+            assert_eq!(opts.issue_id.as_deref(), Some("PROD-587"));
             assert_eq!(opts.body.as_deref(), Some("Investigado, el problema es X"));
         } else {
             panic!("Expected Comment");
@@ -1541,6 +1584,66 @@ mod tests {
             }
         } else {
             panic!("Expected Epic command");
+        }
+    }
+
+    // T03: `lql comment delete <id>` parses to the Delete action.
+    #[test]
+    fn test_comment_delete_cli_parse() {
+        let cli =
+            Cli::try_parse_from(["lql", "comment", "delete", "cb08317c-480b-4c15-a4e7"]).unwrap();
+        if let Command::Comment(opts) = cli.command {
+            match opts.action {
+                Some(CommentAction::Delete(del)) => {
+                    assert_eq!(del.comment_id, "cb08317c-480b-4c15-a4e7");
+                }
+                _ => panic!("Expected CommentAction::Delete"),
+            }
+        } else {
+            panic!("Expected Comment command");
+        }
+    }
+
+    // T03: the legacy `lql comment <ISSUE> "text"` add form still parses (no
+    // subcommand), unaffected by adding the Delete subcommand.
+    #[test]
+    fn test_comment_add_still_parses() {
+        let cli = Cli::try_parse_from(["lql", "comment", "PROD-587", "looks good"]).unwrap();
+        if let Command::Comment(opts) = cli.command {
+            assert!(opts.action.is_none());
+            assert_eq!(opts.issue_id.as_deref(), Some("PROD-587"));
+            assert_eq!(opts.body.as_deref(), Some("looks good"));
+        } else {
+            panic!("Expected Comment command");
+        }
+    }
+
+    #[test]
+    fn test_project_create_cli_parse() {
+        // Real-session shape: name + team + description, description after team.
+        let cli = Cli::try_parse_from([
+            "lql",
+            "project",
+            "create",
+            "Web: de los diccionarios al servidor",
+            "--team",
+            "KC",
+            "--description",
+            "Arc summary",
+        ])
+        .unwrap();
+        if let Command::Project(opts) = cli.command {
+            if let ProjectAction::Create(create) = opts.action {
+                assert_eq!(create.name, "Web: de los diccionarios al servidor");
+                assert_eq!(create.team.as_deref(), Some("KC"));
+                assert_eq!(create.description.as_deref(), Some("Arc summary"));
+                assert!(create.description_file.is_none());
+                assert!(!create.json);
+            } else {
+                panic!("Expected ProjectAction::Create");
+            }
+        } else {
+            panic!("Expected Project command");
         }
     }
 

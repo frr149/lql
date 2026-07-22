@@ -1,14 +1,27 @@
-use crate::cli::CommentOpts;
+use crate::cli::{CommentAction, CommentDeleteOpts, CommentOpts};
 use crate::client::{Client, GraphQLClient};
 use crate::commands::update::find_issue_by_identifier;
 use crate::config::Config;
+use serde_json::Value;
 use std::io::{IsTerminal, Read};
 
 pub fn run(config: &Config, opts: &CommentOpts) -> Result<(), String> {
+    if let Some(CommentAction::Delete(del)) = &opts.action {
+        return run_delete(config, del);
+    }
+    run_add(config, opts)
+}
+
+fn run_add(config: &Config, opts: &CommentOpts) -> Result<(), String> {
     let client = Client::new(&config.auth)?;
 
+    let issue_id = opts
+        .issue_id
+        .as_deref()
+        .ok_or("Missing issue id. Use: lql comment <ISSUE> \"text\"")?;
+
     // Resolver issue UUID
-    let issue = find_issue_by_identifier(&client, &opts.issue_id)?;
+    let issue = find_issue_by_identifier(&client, issue_id)?;
     let issue_uuid = issue
         .get("id")
         .and_then(|v| v.as_str())
@@ -33,11 +46,42 @@ pub fn run(config: &Config, opts: &CommentOpts) -> Result<(), String> {
         .unwrap_or(false);
 
     if success {
-        println!("✓ Comment added to {}", opts.issue_id);
+        println!("✓ Comment added to {issue_id}");
     } else {
-        return Err(format!("Failed to add comment to {}", opts.issue_id));
+        return Err(format!("Failed to add comment to {issue_id}"));
     }
 
+    Ok(())
+}
+
+/// Variables for the `commentDelete` mutation. Pure, so the exact payload can be
+/// asserted without a live client.
+fn comment_delete_vars(comment_id: &str) -> Value {
+    serde_json::json!({ "id": comment_id })
+}
+
+/// Reads the deletion outcome from the server response, failing loud on
+/// `success: false` or a missing field (never report a deletion we didn't get).
+fn comment_delete_succeeded(data: &Value) -> Result<(), String> {
+    match data
+        .get("commentDelete")
+        .and_then(|c| c.get("success"))
+        .and_then(|s| s.as_bool())
+    {
+        Some(true) => Ok(()),
+        Some(false) => Err("Linear rejected the comment deletion".to_string()),
+        None => Err("Could not parse comment deletion response".to_string()),
+    }
+}
+
+fn run_delete(config: &Config, opts: &CommentDeleteOpts) -> Result<(), String> {
+    let client = Client::new(&config.auth)?;
+    let data = client.query(
+        crate::queries::COMMENT_DELETE_MUTATION,
+        comment_delete_vars(&opts.comment_id),
+    )?;
+    comment_delete_succeeded(&data)?;
+    println!("\u{2713} Comment {} deleted", opts.comment_id);
     Ok(())
 }
 
@@ -112,7 +156,8 @@ mod tests {
 
     fn opts_inline(body: &str) -> CommentOpts {
         CommentOpts {
-            issue_id: "PROD-1".to_string(),
+            action: None,
+            issue_id: Some("PROD-1".to_string()),
             body: Some(body.to_string()),
             body_flag: None,
             file: None,
@@ -121,11 +166,40 @@ mod tests {
 
     fn opts_no_body() -> CommentOpts {
         CommentOpts {
-            issue_id: "PROD-1".to_string(),
+            action: None,
+            issue_id: Some("PROD-1".to_string()),
             body: None,
             body_flag: None,
             file: None,
         }
+    }
+
+    // T03: the delete mutation sends exactly `{ "id": <comment-id> }`.
+    #[test]
+    fn test_comment_delete_sends_exact_id_variable() {
+        let vars = comment_delete_vars("cb08317c-480b-4c15-a4e7-66084bfac037");
+        assert_eq!(vars, serde_json::json!({ "id": "cb08317c-480b-4c15-a4e7-66084bfac037" }));
+    }
+
+    // T03 [Sheldon #5]: success is read from the server's response.
+    #[test]
+    fn test_comment_delete_success_reported_from_server() {
+        let data = serde_json::json!({ "commentDelete": { "success": true } });
+        assert!(comment_delete_succeeded(&data).is_ok());
+    }
+
+    // T03 [Sheldon #5]: success:false is an error.
+    #[test]
+    fn test_comment_delete_success_false_is_error() {
+        let data = serde_json::json!({ "commentDelete": { "success": false } });
+        assert!(comment_delete_succeeded(&data).is_err());
+    }
+
+    // T03 [Sheldon #5]: a missing success field is an error, never a silent OK.
+    #[test]
+    fn test_comment_delete_missing_success_field_is_error() {
+        let data = serde_json::json!({ "commentDelete": {} });
+        assert!(comment_delete_succeeded(&data).is_err());
     }
 
     // ERR-65: body inline funciona

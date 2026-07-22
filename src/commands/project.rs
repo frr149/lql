@@ -1,21 +1,134 @@
 use crate::cli::{
-    ProjectAction, ProjectCommentOpts, ProjectOpts, ProjectUpdateOpts, ProjectViewOpts,
+    ProjectAction, ProjectCommentOpts, ProjectCreateOpts, ProjectOpts, ProjectUpdateOpts,
+    ProjectViewOpts,
 };
-use crate::client::{Client, GraphQLClient};
+use crate::client::{Client, GraphQLClient, LinearMeta};
 use crate::commands::comment::{CommentSource, resolve_body_from_source};
-use crate::commands::create::get_description_from_args;
-use crate::commands::epic::{create_comment, run_project_update, validate_target_date};
-use crate::config::Config;
+use crate::commands::create::{get_description_from_args, reject_conflicting_description_sources};
+use crate::commands::epic::{
+    PROJECT_NAME_MAX, create_comment, run_project_update, validate_target_date,
+};
+use crate::config::{Config, TeamSource};
 use crate::format;
 use serde_json::Value;
 use std::io::IsTerminal;
 
 pub fn run(config: &Config, opts: &ProjectOpts) -> Result<(), String> {
     match &opts.action {
+        ProjectAction::Create(opts) => run_create(config, opts),
         ProjectAction::View(opts) => run_view(config, opts),
         ProjectAction::Update(opts) => run_update(config, opts),
         ProjectAction::Comment(opts) => run_comment(config, opts),
     }
+}
+
+/// Builds the `ProjectCreateInput` for `lql project create`. Pure and fallible:
+/// rejects an empty name and a name over Linear's 80-char cap. Unlike an epic's
+/// auto-managed backing project (which truncates), an interactive create fails
+/// loud rather than silently shortening the user's name.
+fn build_project_create_input(
+    name: &str,
+    body: Option<&str>,
+    team_id: &str,
+) -> Result<Value, String> {
+    check_project_name(name)?;
+    let mut input = serde_json::json!({
+        "name": name.trim(),
+        "teamIds": [team_id],
+    });
+    if let Some(body) = body {
+        input["content"] = serde_json::json!(body);
+    }
+    Ok(input)
+}
+
+/// Validates the project name against Linear's rules. Pure, so `run_create` can
+/// call it *before* any network request (fail loud without a wasted round-trip).
+fn check_project_name(name: &str) -> Result<(), String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("Project name is empty".to_string());
+    }
+    let len = trimmed.chars().count();
+    if len > PROJECT_NAME_MAX {
+        return Err(format!(
+            "Project name is {len} chars; Linear caps project names at {PROJECT_NAME_MAX}. \
+             Shorten it."
+        ));
+    }
+    Ok(())
+}
+
+/// Extracts the created project node from the mutation response, failing loud
+/// when the server reports `success: false` or omits the node. Success is read
+/// from the server's answer, never assumed from the request (semantic honesty).
+fn project_from_create_response(data: &Value) -> Result<Value, String> {
+    let success = data
+        .get("projectCreate")
+        .and_then(|c| c.get("success"))
+        .and_then(|s| s.as_bool())
+        .unwrap_or(false);
+    if !success {
+        return Err("Linear rejected the project creation".to_string());
+    }
+    // A JSON `null` node must NOT count as a created project: `.get("project")`
+    // returns `Some(Value::Null)`, so filter it out or `success` alone would
+    // fake a creation the server didn't actually return.
+    data.get("projectCreate")
+        .and_then(|c| c.get("project"))
+        .filter(|v| !v.is_null())
+        .cloned()
+        .ok_or_else(|| "Could not parse created project from response".to_string())
+}
+
+fn run_create(config: &Config, opts: &ProjectCreateOpts) -> Result<(), String> {
+    reject_conflicting_description_sources(opts.description.as_ref(), opts.description_file.as_ref())?;
+    // Validate the name up front so a bad name fails before any network request.
+    check_project_name(&opts.name)?;
+
+    let cwd = std::env::current_dir().map_err(|e| format!("Could not get cwd: {e}"))?;
+    let (team_key, _project, _label, team_source) =
+        config.resolve_team(opts.team.as_deref(), &cwd)?;
+    if team_source == TeamSource::Default {
+        crate::print_warning(
+            &crate::config::team_fallback_warning(&team_key),
+            crate::cli::machine_mode(),
+        );
+    }
+
+    let client = Client::new(&config.auth)?;
+    let meta = LinearMeta::fetch(&client)?;
+    let team = meta.find_team(&team_key)?;
+
+    let body =
+        get_description_from_args(opts.description.as_ref(), opts.description_file.as_ref())?;
+    let input = build_project_create_input(&opts.name, body.as_deref(), &team.id)?;
+
+    let data = client.query(
+        crate::queries::PROJECT_CREATE_MUTATION,
+        serde_json::json!({ "input": input }),
+    )?;
+    let created = project_from_create_response(&data)?;
+
+    if opts.json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&created).unwrap_or_default()
+        );
+    } else {
+        // Name/url come from the server's node, not from opts.name.
+        let name = created
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("(unknown)");
+        let url = created.get("url").and_then(|v| v.as_str()).unwrap_or("");
+        if url.is_empty() {
+            println!("\u{2713} Project created: {name}");
+        } else {
+            println!("\u{2713} Project created: {name} \u{2014} {url}");
+        }
+    }
+    Ok(())
 }
 
 fn run_view(config: &Config, opts: &ProjectViewOpts) -> Result<(), String> {
@@ -34,9 +147,7 @@ fn run_view(config: &Config, opts: &ProjectViewOpts) -> Result<(), String> {
 }
 
 fn run_update(config: &Config, opts: &ProjectUpdateOpts) -> Result<(), String> {
-    if opts.description.is_some() && opts.description_file.is_some() {
-        return Err("--description and --description-file are mutually exclusive".to_string());
-    }
+    reject_conflicting_description_sources(opts.description.as_ref(), opts.description_file.as_ref())?;
 
     let body =
         get_description_from_args(opts.description.as_ref(), opts.description_file.as_ref())?;
@@ -188,4 +299,85 @@ fn looks_like_uuid(s: &str) -> bool {
             8 | 13 | 18 | 23 => c == b'-',
             _ => c.is_ascii_hexdigit(),
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // T02: the input carries the name and the resolved team id, nothing else.
+    #[test]
+    fn test_project_create_input_has_name_and_team() {
+        let input = build_project_create_input("Web arc", None, "team-uuid").unwrap();
+        assert_eq!(input["name"], "Web arc");
+        assert_eq!(input["teamIds"], serde_json::json!(["team-uuid"]));
+        assert!(input.get("content").is_none()); // no body → no content key
+    }
+
+    // T02: a body is placed in `content`, never the length-capped `description`.
+    #[test]
+    fn test_project_create_input_body_goes_to_content() {
+        let input = build_project_create_input("Name", Some("# Long body"), "t").unwrap();
+        assert_eq!(input["content"], "# Long body");
+        assert!(input.get("description").is_none());
+    }
+
+    // T02: empty / whitespace-only name is a typed error before any request.
+    #[test]
+    fn test_project_create_rejects_empty_name() {
+        assert!(build_project_create_input("   ", None, "t").is_err());
+    }
+
+    // T02: a name over Linear's 80-char cap is a typed error (fail loud, not
+    // silently truncate the way an epic's backing project does).
+    #[test]
+    fn test_project_create_rejects_overlong_name() {
+        let long = "x".repeat(PROJECT_NAME_MAX + 1);
+        let err = build_project_create_input(&long, None, "t").unwrap_err();
+        assert!(err.contains("caps project names at 80"), "{err}");
+    }
+
+    // T02: passing both description sources is rejected (no silent drop).
+    #[test]
+    fn test_project_create_description_flags_mutually_exclusive() {
+        let d = "inline".to_string();
+        let f = "file.md".to_string();
+        assert!(reject_conflicting_description_sources(Some(&d), Some(&f)).is_err());
+    }
+
+    // T02 [Sheldon #5]: success/name are read from the SERVER response node, not
+    // from the request. A server node with a different name wins.
+    #[test]
+    fn test_project_create_reads_name_from_response() {
+        let data = serde_json::json!({
+            "projectCreate": {
+                "success": true,
+                "project": { "id": "p1", "name": "Server-Chosen Name", "url": "https://x" }
+            }
+        });
+        let node = project_from_create_response(&data).unwrap();
+        assert_eq!(node["name"], "Server-Chosen Name");
+    }
+
+    // T02 [Sheldon #5]: success:false is an error, never exit 0.
+    #[test]
+    fn test_project_create_success_false_is_error() {
+        let data = serde_json::json!({ "projectCreate": { "success": false } });
+        assert!(project_from_create_response(&data).is_err());
+    }
+
+    // T02 [Sheldon #5]: success:true but a missing project node is an error.
+    #[test]
+    fn test_project_create_missing_node_is_error() {
+        let data = serde_json::json!({ "projectCreate": { "success": true } });
+        assert!(project_from_create_response(&data).is_err());
+    }
+
+    // T02 [Sheldon verify BLOQUEANTE]: success:true with an explicit null project
+    // node must be an error, not a fake success.
+    #[test]
+    fn test_project_create_null_node_is_error() {
+        let data = serde_json::json!({ "projectCreate": { "success": true, "project": null } });
+        assert!(project_from_create_response(&data).is_err());
+    }
 }

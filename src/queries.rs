@@ -217,6 +217,15 @@ mutation CreateComment($input: CommentCreateInput!) {
 }
 "#;
 
+/// Borrar un comentario por su id.
+pub const COMMENT_DELETE_MUTATION: &str = r#"
+mutation DeleteComment($id: String!) {
+  commentDelete(id: $id) {
+    success
+  }
+}
+"#;
+
 /// Crear relación
 pub const RELATION_MUTATION: &str = r#"
 mutation CreateRelation($input: IssueRelationCreateInput!) {
