@@ -89,7 +89,10 @@ fn project_from_create_response(data: &Value) -> Result<Value, String> {
 }
 
 fn run_create(config: &Config, opts: &ProjectCreateOpts) -> Result<(), String> {
-    reject_conflicting_description_sources(opts.description.as_ref(), opts.description_file.as_ref())?;
+    reject_conflicting_description_sources(
+        opts.description.as_ref(),
+        opts.description_file.as_ref(),
+    )?;
     // Validate the name up front so a bad name fails before any network request.
     check_project_name(&opts.name)?;
 
@@ -154,7 +157,10 @@ fn run_view(config: &Config, opts: &ProjectViewOpts) -> Result<(), String> {
 }
 
 fn run_update(config: &Config, opts: &ProjectUpdateOpts) -> Result<(), String> {
-    reject_conflicting_description_sources(opts.description.as_ref(), opts.description_file.as_ref())?;
+    reject_conflicting_description_sources(
+        opts.description.as_ref(),
+        opts.description_file.as_ref(),
+    )?;
 
     let body =
         get_description_from_args(opts.description.as_ref(), opts.description_file.as_ref())?;

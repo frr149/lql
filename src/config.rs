@@ -76,9 +76,7 @@ pub enum TeamSource {
 /// substituted. Callers emit it to stderr — never stdout, which carries the
 /// TOON/machine payload (semantic honesty: announce the implicit fallback).
 pub fn team_fallback_warning(team: &str) -> String {
-    format!(
-        "no team detected from context; using configured default team {team} ([defaults].team)"
-    )
+    format!("no team detected from context; using configured default team {team} ([defaults].team)")
 }
 
 fn default_sort() -> String {
@@ -173,12 +171,7 @@ impl Config {
             if let Some(msg) = self.retired_team_message(default_team) {
                 return Err(format!("Team {default_team} is retired. {msg}"));
             }
-            return Ok((
-                default_team.to_string(),
-                None,
-                None,
-                TeamSource::Default,
-            ));
+            return Ok((default_team.to_string(), None, None, TeamSource::Default));
         }
 
         let cwd_display = cwd.display();
@@ -405,9 +398,7 @@ QIN = "Use: --team PROD --label phoenix"
         let config = test_config();
         let cwd = Path::new("/tmp");
         for variant in ["tok", "Tok", "tOk", "qin", "Qin"] {
-            let err = config
-                .resolve_team(Some(variant), cwd)
-                .unwrap_err();
+            let err = config.resolve_team(Some(variant), cwd).unwrap_err();
             assert!(err.contains("retired"), "{variant} -> {err}");
         }
     }

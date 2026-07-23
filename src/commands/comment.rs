@@ -178,7 +178,10 @@ mod tests {
     #[test]
     fn test_comment_delete_sends_exact_id_variable() {
         let vars = comment_delete_vars("cb08317c-480b-4c15-a4e7-66084bfac037");
-        assert_eq!(vars, serde_json::json!({ "id": "cb08317c-480b-4c15-a4e7-66084bfac037" }));
+        assert_eq!(
+            vars,
+            serde_json::json!({ "id": "cb08317c-480b-4c15-a4e7-66084bfac037" })
+        );
     }
 
     // T03 [Sheldon #5]: success is read from the server's response.
