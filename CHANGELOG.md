@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0](https://github.com/frr149/lql/releases/tag/v1.8.0) - 2026-07-23
+
+### Added
+
+- `lql project create <name>` — create a Linear project (previously only via raw GraphQL).
+- `lql comment delete <id>`; `lql comments` now prints comment IDs.
+- `[defaults] team` config fallback: used when no `--team` and no context-map match, with a **stderr warning** announcing the substitution (never stdout).
+
+### Fixed
+
+- Retired-team check is now case-insensitive on all resolution paths (override, default, context-map) — a retired team can no longer resolve as live via a case variant (Postel's robustness principle).
+
 ## [1.7.2](https://github.com/frr149/lql/releases/tag/v1.7.2) - 2026-06-19
 
 ### Fixed
