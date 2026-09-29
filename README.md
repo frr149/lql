@@ -4,7 +4,7 @@
 [![Rust](https://img.shields.io/badge/rust-1.93%2B-orange.svg)](https://www.rust-lang.org)
 [![Tests](https://img.shields.io/badge/tests-305%20passing-brightgreen.svg)](#testing)
 [![Binary Size](https://img.shields.io/badge/binary-4.7%20MB-informational.svg)](#install)
-[![Built with Adversarial Programming](https://img.shields.io/badge/built%20with-adversarial%20programming-black.svg)](https://frr.dev/en/the-wrong-path-should-be-impossible-not-forbidden/)
+[![Built with Adversarial Programming](https://img.shields.io/badge/built%20with-adversarial%20programming-black.svg)](https://www.frr.dev/posts/impossible-path-ai-agent-guardrails/)
 
 A CLI for [Linear](https://linear.app) built for AI agents. Written in Rust.
 
@@ -32,7 +32,7 @@ The solution wasn't better documentation. It was a better tool.
 
 ## Design philosophy: the wrong path should be impossible, not forbidden
 
-lql is built on a principle from [adversarial programming](https://frr.dev/en/the-wrong-path-should-be-impossible-not-forbidden/): don't tell an AI agent what not to do — make it so the wrong thing can't happen.
+lql is built on a principle from [adversarial programming](https://www.frr.dev/posts/impossible-path-ai-agent-guardrails/): don't tell an AI agent what not to do — make it so the wrong thing can't happen.
 
 ### Tolerance, not rejection
 
@@ -288,12 +288,12 @@ The key techniques:
 
 ### Read more
 
-- [The wrong path should be impossible, not forbidden](https://frr.dev/en/the-wrong-path-should-be-impossible-not-forbidden/) — the core principle
-- [Linear Agent is not what you need](https://frr.dev/en/linear-agent-cli-rust-agent-already-had/) — why we built lql instead of using Linear's built-in AI
-- [Adversarial programming: when your AI copilot invents the API](https://frr.dev/en/adversarial-programming-ai-copilot-invents-api/) — schema-first defense against hallucinated APIs
-- [150 lines of apologies eliminated](https://frr.dev/en/skill-before-after-tolerant-tool-fewer-instructions/) — how a tolerant tool erases defensive documentation
-- [Why my CLI doesn't speak XML: TOON and tokens](https://frr.dev/en/why-my-cli-doesnt-speak-xml-toon-tokens/) — output format design for LLM consumers
-- [MDD: Don Quixote and Sancho Panza as AI copilots](https://frr.dev/en/mdd-don-quixote-sancho-panza-ai-copilot/) — the two-layer validation methodology
+- [The wrong path should be impossible, not forbidden](https://www.frr.dev/posts/impossible-path-ai-agent-guardrails/) — the core principle
+- [Linear Agent is not what you need](https://www.frr.dev/posts/linear-agent-cli-rust-agent-already-had/) — why we built lql instead of using Linear's built-in AI
+- [Adversarial programming: when your AI copilot invents the API](https://www.frr.dev/posts/adversarial-programming-ai-copilot-invents-api/) — schema-first defense against hallucinated APIs
+- [150 lines of apologies eliminated](https://www.frr.dev/posts/skill-before-after-tolerant-tool-fewer-instructions/) — how a tolerant tool erases defensive documentation
+- [Why my CLI doesn't speak XML: TOON and tokens](https://www.frr.dev/posts/cli-output-xml-toon-token-efficient-llm/) — output format design for LLM consumers
+- [MDD: Don Quixote and Sancho Panza as AI copilots](https://www.frr.dev/posts/madness-driven-design-don-quixote-sancho-panza-ai-copilot/) — the two-layer validation methodology
 
 ## Cross-compile
 
